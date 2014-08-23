@@ -28,8 +28,9 @@
     @author   Pusalieth aka Jake Pring
     @license  BSD license, all text above and below must be included in
               any redistribution
- I have modified this library to include the rotate function to use in sketch type 
- textRotate with boolean input
+ I have modified this library to include the text rotate function to use in sketch type 
+ textRotate with boolean input, and a swap for vertical and horizontal scan with the functions
+ scanV_flip and scanH_flip respectively, both have boolean input respectively.
 */
 #if ARDUINO >= 100
  #include "Arduino.h"
@@ -76,6 +77,8 @@ class Adafruit_RA8875 : public Adafruit_GFX {
   void    softReset(void);
   void    displayOn(boolean on);
   void    sleep(boolean sleep);
+  void    scanV_flip(boolean V_scan);
+  void	  scanH_flip(boolean H_scan);
 
   /* Text functions */
   void    textMode(void);

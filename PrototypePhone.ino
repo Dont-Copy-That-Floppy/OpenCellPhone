@@ -24,9 +24,9 @@
 unsigned char buffer[64]; // buffer array for data receive over serial port
 int count=0;     // counter for buffer array
 
-//Display Parameters MAX 260X 460Y don't know why
+//Display Parameters
 #define RA8875_INT 3
-#define RA8875_CS 52
+#define RA8875_CS 10
 #define RA8875_RESET 9
 
 Adafruit_RA8875 tft = Adafruit_RA8875(RA8875_CS, RA8875_RESET);
@@ -61,54 +61,48 @@ void setup()
   tft.PWM1config(true, RA8875_PWM_CLK_DIV1024); // PWM output for backlight
   tft.PWM1out(255);
   
-  /*test display
-  tft.fillScreen(RA8875_WHITE);
-  delay(500);
-  tft.fillScreen(RA8875_RED);
-  delay(500);
-  tft.fillScreen(RA8875_YELLOW);
-  delay(500);
-  tft.fillScreen(RA8875_GREEN);
-  delay(500);
-  tft.fillScreen(RA8875_CYAN);
-  delay(500);
-  tft.fillScreen(RA8875_MAGENTA);
-  delay(500);
-  tft.fillScreen(RA8875_BLACK);*/
-  
-  /*draw number pad for testing
-  tft.fillRect(10, 10, 300, 250, RA8875_GREEN); // Y bottom line, X left line, Y top line, X right line
-  tft.fillRect(10, 10, 200, 250, RA8875_YELLOW);
-  tft.fillRect(10, 10, 100, 250, RA8875_WHITE);
-  tft.fillRect(10, 10, 300, 170, RA8875_WHITE);
-  tft.fillRect(10, 10, 200, 170, RA8875_BLUE);
-  tft.fillRect(10, 10, 100, 170, RA8875_YELLOW);
-  tft.fillRect(10, 10, 300, 85, RA8875_YELLOW); //this should be 90 but for soom reason when displayed 85 is correct
-  tft.fillRect(10, 10, 200, 85, RA8875_RED);
-  tft.fillRect(10, 10, 100, 85, RA8875_MAGENTA);*/
-  
   //initialize touch capabilities
   tft.touchEnable(true);
   pinMode(RA8875_INT, INPUT);
   digitalWrite(RA8875_INT, HIGH);
   
-  //draw number pad background
-  tft.fillRect(10, 10, 400, 250, RA8875_WHITE);
-  tft.drawLine(10, 85, 400, 85, RA8875_BLACK);
-  tft.drawLine(10, 170, 400, 170, RA8875_BLACK);
-  tft.drawLine(10, 250, 400, 250, RA8875_BLACK);
+  //draw number pad background for testing
+  //tft.fillRect(100, 5, 379, 266, RA8875_BLACK); // x,y,w,h X and Y start at top left
+  //tft.drawLine(100, 90, 479, 90, RA8875_WHITE);
+  //tft.drawLine(100, 181, 479, 181, RA8875_WHITE);
   
   //draw numbers on number pad
   tft.textMode();
   tft.textRotate(true);
-  tft.textColor(RA8875_BLACK, RA8875_WHITE);
-  tft.textSetCursor(50, 50);
+  tft.textColor(RA8875_WHITE, RA8875_BLACK);
+  tft.textEnlarge(2);
+  //first row 1,2,3
+  tft.textSetCursor(150, 35);
+  tft.textWrite("3");
+  tft.textSetCursor(150, 125);
+  tft.textWrite("2");
+  tft.textSetCursor(150, 220);
   tft.textWrite("1");
-  tft.textSetCursor(75, 75);
+  //second row 4,5,6
+  tft.textSetCursor(235, 35);
+  tft.textWrite("6");
+  tft.textSetCursor(235, 125);
+  tft.textWrite("5");
+  tft.textSetCursor(235, 220);
   tft.textWrite("4");
-  tft.textSetCursor(25, 25);
+  //third row 7,8,9
+  tft.textSetCursor(320, 35);
+  tft.textWrite("9");
+  tft.textSetCursor(320, 125);
+  tft.textWrite("8");
+  tft.textSetCursor(320, 220);
   tft.textWrite("7");
-  tft.textSetCursor(120, 120);
+  //fourth row *,0,#
+  tft.textSetCursor(400, 35);
+  tft.textWrite("#");
+  tft.textSetCursor(400, 125);
+  tft.textWrite("0");
+  tft.textSetCursor(400, 220);
   tft.textWrite("*");
 }
  
