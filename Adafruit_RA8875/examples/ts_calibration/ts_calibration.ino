@@ -3,7 +3,7 @@
 #include "Adafruit_RA8875.h"
 
 #define RA8875_INT     3
-#define RA8875_CS      52
+#define RA8875_CS      10
 #define RA8875_RESET   9
 
 Adafruit_RA8875 tft = Adafruit_RA8875(RA8875_CS, RA8875_RESET);
