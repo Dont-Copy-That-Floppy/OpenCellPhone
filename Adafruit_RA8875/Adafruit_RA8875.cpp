@@ -388,7 +388,29 @@ void Adafruit_RA8875::textRotate(boolean on)
   else 
     writeReg(0x22, 0);	
 }
- 
+
+/**************************************************************************/
+/*!
+      Test to send chars from defined buffer
+*/
+/**************************************************************************/
+void Adafruit_RA8875::arrayWrite(char numBuf[], uint16_t len) 
+{
+  if (len == 0) len = strlen(buffer);
+  writeCommand(RA8875_MRWC);
+  for (uint16_t i=0; i<len; i++)
+  {
+    writeData(numBuf[i]);
+#if defined(__AVR__)
+    if (_textScale > 1) delay(1);
+#elif defined(__arm__)
+    // This delay is needed with textEnlarge(1) because
+    // Teensy 3.X is much faster than Arduino Uno
+    if (_textScale > 0) delay(1);
+#endif
+  }
+}
+
 /**************************************************************************/
 /*!
       Renders some text on the screen when in text mode
@@ -401,7 +423,7 @@ void Adafruit_RA8875::textWrite(const char* buffer, uint16_t len)
 {
   if (len == 0) len = strlen(buffer);
   writeCommand(RA8875_MRWC);
-  for (uint16_t i=0;i<len;i++)
+  for (uint16_t i=0; i<len; i++)
   {
     writeData(buffer[i]);
 #if defined(__AVR__)

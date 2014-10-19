@@ -24,7 +24,7 @@
     v1.0 - First release
 */
 /*!
-    @file     Adafruit_RA8875.cpp
+    @file     Adafruit_RA8875.h
     @author   Pusalieth aka Jake Pring
     @license  BSD license, all text above and below must be included in
               any redistribution
@@ -88,6 +88,7 @@ class Adafruit_RA8875 : public Adafruit_GFX {
   void    textEnlarge(uint8_t scale);
   void    textWrite(const char* buffer, uint16_t len=0);
   void    textRotate(boolean on);
+  void    arrayWrite(numBuf, uint16_t len=0);
 
   /* Graphics functions */
   void    graphicsMode(void);
