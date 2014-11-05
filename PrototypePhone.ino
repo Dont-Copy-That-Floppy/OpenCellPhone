@@ -119,14 +119,12 @@ void setup() {
   tft.textWrite("Booting...");
 
   // Update time from network
-  delay(15);
   Serial1.write("AT+CLTS=1\r\n");
-  delay(15);
+  for (int i = 0; i < 15; i++);
 
   // Make sure Caller ID is on
-  delay(15);
   Serial1.write("AT+CLIP=1\r\n");
-  delay(15);
+  for (int i = 0; i < 15; i++);
 }
 
 void loop() {
@@ -190,18 +188,6 @@ void loop() {
   if (resultStr == "No Carrier" && oldResultStr != resultStr) {
 
     // clear number display and number pad
-    tft.graphicsMode();
-    tft.fillRect(75, 0, 404, 279, RA8875_BLACK);
-
-    // Display to User when call lost or opposite end hang up
-    tft.textMode();
-    tft.textRotate(true);
-    tft.textColor(RA8875_WHITE, RA8875_BLACK);
-    tft.textEnlarge(2);
-    delay(5);
-    tft.textSetCursor(75, 20);
-    tft.textWrite("No Service");
-    delay(2000);
     atHomeScreen = true;
     atPhoneScreen = false;
     atTextMessageScreen = false;
@@ -534,7 +520,7 @@ void loop() {
       // Display Message Body
       tft.textSetCursor(175, 0);
       tft.writeCommand(RA8875_MRWC);
-      for (int i = messageStart + 2; i < messageEnd - 1; i++) {
+      for (int i = messageStart + 2; i < messageEnd; i++) {
         tft.writeData(textCharBuf[i]);
         delay(1);
       }
@@ -808,17 +794,17 @@ void loop() {
             delay(50);
           }
         }
-        
+
         //=======================================================================================
         // ANSWER SCREEN TOUCH
         //=======================================================================================
-        
+
         if (atAnswerScreen == true) {
-          
+
           //=========================
           //      ANSWER BUTTON
           //=========================
-          if (tx > 128 && tx < 300 && ty > 204 && ty < 440) {
+          if (tx > 119 && tx < 311 && ty > 196 && ty < 456) {
             delay(50);
             tx = 0;
             ty = 0;
@@ -838,24 +824,24 @@ void loop() {
             drawPhoneScreen();
             delay(50);
           }
-          
+
           //=========================
           //      IGNORE BUTTON
           //=========================
-          if (tx > 128 && tx < 300 && ty > 580 && ty < 815) {
+          if (tx > 119 && tx < 311 && ty > 568 && ty < 826) {
             delay(50);
             tx = 0;
             ty = 0;
             delay(50);
           }
         }
-        
+
         //=======================================================================================
         // PHONE SCREEN TOUCH
         //=======================================================================================
-        
+
         if (atPhoneScreen == true) {
-          
+
           //=========================
           //          #1
           //=========================
@@ -1412,15 +1398,15 @@ void drawTextMessageScreen() {
 void drawAnswerScreen () {
   tft.fillScreen(RA8875_BLACK);
   tft.graphicsMode();
-  tft.fillCircle(400, 70, 45, RA8875_GREEN);
-  tft.fillCircle(400, 198, 45, RA8875_RED);
+  tft.fillCircle(400, 70, 55, RA8875_GREEN);
+  tft.fillCircle(400, 198, 55, RA8875_RED);
   tft.textMode();
   tft.textEnlarge(1);
   tft.textColor(RA8875_WHITE, RA8875_GREEN);
-  tft.textSetCursor(385, 30);
+  tft.textSetCursor(385, 23);
   tft.textWrite("Answer");
   tft.textColor(RA8875_WHITE, RA8875_RED);
-  tft.textSetCursor(385, 176);
+  tft.textSetCursor(385, 148);
   tft.textWrite("Ignore");
 }
 void drawMessagePad() {
