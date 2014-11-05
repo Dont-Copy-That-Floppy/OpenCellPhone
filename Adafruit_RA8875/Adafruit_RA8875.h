@@ -88,7 +88,6 @@ class Adafruit_RA8875 : public Adafruit_GFX {
   void    textEnlarge(uint8_t scale);
   void    textWrite(const char* buffer, uint16_t len=0);
   void    textRotate(boolean on);
-  void    arrayWrite(numBuf, uint16_t len=0);
 
   /* Graphics functions */
   void    graphicsMode(void);
