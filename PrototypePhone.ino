@@ -538,9 +538,6 @@ void loop() {
       // store data and input to array
       char callerID[bufGPRS.length()];
       bufGPRS.toCharArray(callerID, bufGPRS.length());
-      Serial.print("The incoming number is ");
-      Serial.print(callerID);
-      Serial.print("\r\n");
 
       // Display number on screen
       tft.textMode();
@@ -549,7 +546,7 @@ void loop() {
       delay(5);
       tft.textSetCursor(125, 20);
       tft.writeCommand(RA8875_MRWC);
-      for (int i = callerID_Start + 1; i < callerID_End - 1; i++) {
+      for (int i = callerID_Start + 1; i < callerID_End; i++) {
         tft.writeData(callerID[i]);
         delay(1);
       }
