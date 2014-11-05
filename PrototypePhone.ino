@@ -17,6 +17,7 @@
   Seperate and Defined Screens with functions and touch values per screen (ie. Phone vs SMS)
   Read individual texts defined/sorted by index
   Delete SMS
+  Caller ID
 
 *************************************************************************************************/
 
@@ -63,8 +64,8 @@ String bufGPRS = "";
 
 // Keep track of missed Calls
 int countRings = 0;
-int countMissedCalls = 0;
-String checkMissed = "";
+int missedCalls = 48;
+int oldMissedCalls = 48;
 
 // Keep track of time elapsed since last call for time (defined per 60 seconds)
 unsigned long int every60 = 0;
@@ -120,11 +121,11 @@ void setup() {
 
   // Update time from network
   Serial1.write("AT+CLTS=1\r\n");
-  for (int i = 0; i < 15; i++);
+  for (int i = 0; i < 30; i++);
 
   // Make sure Caller ID is on
   Serial1.write("AT+CLIP=1\r\n");
-  for (int i = 0; i < 15; i++);
+  for (int i = 0; i < 30; i++);
 }
 
 void loop() {
@@ -168,49 +169,12 @@ void loop() {
     resultStr = "NORMAL POWER DOWN";
   if (bufGPRS.substring(0, 6) == "+CCLK:" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n")
     resultStr = "Time";
-  if (bufGPRS.substring(0, bufGPRS.length() - 2) == "RING" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n") {
+  if (bufGPRS.substring(0, bufGPRS.length() - 2) == "RING" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n")
     resultStr = "Ringing";
-    atAnswerScreen = true;
-    atHomeScreen = false;
-    atPhoneScreen = false;
-    atTextMessageScreen = false;
-    drawAnswerScreen();
-  }
   if (bufGPRS.substring(0, bufGPRS.length() - 2) == "OK" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n")
     resultStr = "OK";
   if (bufGPRS.substring(0, 6) == "+CMGR:" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n")
     resultStr = "Text Read";
-
-  //=========================
-  //      CALL LOST
-  //=========================
-
-  if (resultStr == "No Carrier" && oldResultStr != resultStr) {
-
-    // clear number display and number pad
-    atHomeScreen = true;
-    atPhoneScreen = false;
-    atTextMessageScreen = false;
-    atAnswerScreen = false;
-    drawHomeScreen();
-  }
-
-  //=========================
-  //    SIM900 OFF
-  //=========================
-  if (resultStr == "NORMAL POWER DOWN" && oldResultStr != resultStr) {
-    // Display to User GPRS shield is off
-    tft.textMode();
-    tft.textColor(RA8875_WHITE, RA8875_BLACK);
-    tft.textEnlarge(2);
-    delay(5);
-    tft.textSetCursor(250, 50);
-    tft.textWrite("SIM900m");
-    tft.textSetCursor(300, 50);
-    tft.textWrite("POWERED");
-    tft.textSetCursor(350, 50);
-    tft.textWrite("  OFF");
-  }
 
   //===========================================================================================================================
   // Defined functions per screen
@@ -416,24 +380,17 @@ void loop() {
     //=========================
     //      MISSED CALLS
     //=========================
-    if (resultStr == "Ringing" && oldResultStr != resultStr) {
-      checkMissed += bufGPRS;
-      Serial.print("This is checkMissed String ");
-      Serial.print(checkMissed);
-      Serial.print("\r\n");
-      int lastG = checkMissed.indexOf('G', 6);
-      if (bufGPRS.substring(lastG + 2, bufGPRS.length() - 2) == "NO CARRIER") {
-        countMissedCalls++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(1);
-        delay(5);
-        tft.textSetCursor(75, 20);
-        tft.textWrite("Missed ");
-        tft.writeCommand(RA8875_MRWC);
-        tft.writeData((char)countMissedCalls);
-        checkMissed = "";
+    if (missedCalls > oldMissedCalls) {
+      tft.textMode();
+      tft.textRotate(true);
+      tft.textColor(RA8875_WHITE, RA8875_BLACK);
+      tft.textEnlarge(1);
+      delay(5);
+      tft.textSetCursor(270, 15);
+      tft.textWrite("Missed Calls ");
+      for (int i = 0; i < 1; i++) {
+        tft.writeData((char)missedCalls);
+        delay(1);
       }
     }
 
@@ -455,15 +412,26 @@ void loop() {
       tft.textSetCursor(160, 20);
       tft.textWrite("New Message ");
 
-      // Display the index of the message just received
-      incomingMessageIndex = bufGPRS.substring(bufGPRS.indexOf(',') + 1, bufGPRS.length() - 2);
+      //=========================
+      //    NEW MESSAGE INDEX
+      //=========================
+      if (bufGPRS.indexOf(',') + 2 == '\r')
+        incomingMessageIndex[1] = bufGPRS.charAt(bufGPRS.indexOf(',') + 1);
+      else
+        incomingMessageIndex = bufGPRS.substring(bufGPRS.indexOf(',') + 1, bufGPRS.length() - 2);
+
+      //=========================
+      //      DISPLAY INDEX
+      //=========================
       tft.writeCommand(RA8875_MRWC);
       for (int i = 0; i < 2; i++) {
         tft.writeData(incomingMessageIndex[i]);
         delay(1);
       }
 
-      // Prompt User to View Message
+      //=========================
+      //   VIEW MESSAGE PROMPT
+      //=========================
       tft.textMode();
       tft.textRotate(true);
       tft.textColor(RA8875_WHITE, RA8875_BLACK);
@@ -535,10 +503,19 @@ void loop() {
   //===========================================================================================================================
   if (atAnswerScreen == true) {
 
-    // If incoming Call halt everything, clear everything, and return to home to allow answer
+    //=========================
+    //  DISPLAY Incoming Call
+    //=========================
+    // If incoming Call halt everything, clear everything
     if (resultStr == "Ringing" && oldResultStr != resultStr) {
+      if (countRings == 0) {
+        atAnswerScreen = true;
+        atHomeScreen = false;
+        atPhoneScreen = false;
+        atTextMessageScreen = false;
+        drawAnswerScreen();
+      }
       tft.textMode();
-      tft.textRotate(true);
       tft.textColor(RA8875_WHITE, RA8875_BLACK);
       tft.textEnlarge(1);
       delay(5);
@@ -546,28 +523,42 @@ void loop() {
       tft.textWrite("Incoming Call");
       resultStr = "";
       countRings++;
+    }
 
-      //=========================
-      //    DISPLAY CALLER ID
-      //=========================
-      if (countRings > 1) {
+    //=========================
+    //    DISPLAY CALLER ID
+    //=========================
+    if (resultStr == "Caller ID" && oldResultStr != resultStr) {
+      // Determine the start and finish of body for Caller id number
+      int callerID_Start = bufGPRS.indexOf('\"');
+      int callerID_End = bufGPRS.indexOf('\"', callerID_Start + 1);
 
-        // Determine the start and finish of body for Caller id number
-        int callerID_Start = bufGPRS.indexOf('\"');
-        int callerID_End = bufGPRS.indexOf('\"', callerID_Start + 1);
+      // store data and input to array
+      char callerID[bufGPRS.length()];
+      bufGPRS.toCharArray(callerID, bufGPRS.length());
+      Serial.print("The incoming number is ");
+      Serial.print(callerID);
+      Serial.print("\r\n");
 
-        // store data and input to array
-        char callerID[30];
-        bufGPRS.toCharArray(callerID, bufGPRS.length());
-
-        // Display number on screen
-        tft.textSetCursor(125, 20);
-        tft.writeCommand(RA8875_MRWC);
-        for (int i = callerID_Start + 1; i < callerID_End - 1; i++) {
-          tft.writeData(callerID[i]);
-          delay(1);
-        }
+      // Display number on screen
+      tft.textMode();
+      tft.textColor(RA8875_WHITE, RA8875_BLACK);
+      tft.textEnlarge(1);
+      delay(5);
+      tft.textSetCursor(125, 20);
+      tft.writeCommand(RA8875_MRWC);
+      for (int i = callerID_Start + 1; i < callerID_End - 1; i++) {
+        tft.writeData(callerID[i]);
+        delay(1);
       }
+    }
+
+    //=========================
+    //    MISSED CALLS
+    //=========================
+    if (countRings > 1 && resultStr == "No Carrier" && oldResultStr != resultStr) {
+      missedCalls++;
+      countRings = 0;
     }
   }
 
@@ -575,6 +566,35 @@ void loop() {
   // END OF SCREEN FUNCTIONS
   //===========================================================================================================================
 
+  //=========================
+  //      CALL LOST
+  //=========================
+  if (resultStr == "No Carrier" && oldResultStr != resultStr) {
+
+    // clear number display and number pad
+    atHomeScreen = true;
+    atPhoneScreen = false;
+    atTextMessageScreen = false;
+    atAnswerScreen = false;
+    drawHomeScreen();
+  }
+
+  //=========================
+  //    SIM900 OFF
+  //=========================
+  if (resultStr == "NORMAL POWER DOWN" && oldResultStr != resultStr) {
+    // Display to User GPRS shield is off
+    tft.textMode();
+    tft.textColor(RA8875_WHITE, RA8875_BLACK);
+    tft.textEnlarge(2);
+    delay(5);
+    tft.textSetCursor(250, 50);
+    tft.textWrite("SIM900m");
+    tft.textSetCursor(300, 50);
+    tft.textWrite("POWERED");
+    tft.textSetCursor(350, 50);
+    tft.textWrite("  OFF");
+  }
 
   //===========================================================================================================================
   // TOUCH FUNCTIONS/AREAS DEFINED PER SCREEN
@@ -638,10 +658,21 @@ void loop() {
             viewMessage = false;
             delay(50);
           }
+          /*
+                    //=========================
+                    //   CLEAR NEW MESSAGES
+                    //=========================
+                    if (finger dragged over missed messages left to right) {
+                    }
 
-          //=========================
-          //   CLEAR NOTIFICATIONS
-          //=========================
+                    //=========================
+                    //   CLEAR MISSED CALLS
+                    //=========================
+                    if (finger dragged over missed calls left to right) {
+                      tft.fillRect(270, 20, 40, 259, RA8875_BLACK);
+                      oldMissedCalls = missedCalls;
+                    }
+          */
 
           //=========================
           //    VIEW NEW MESSAGE
