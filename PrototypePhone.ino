@@ -18,6 +18,7 @@
   Read individual texts defined/sorted by index
   Delete SMS
   Caller ID
+  Display Missed Calls
 
 *************************************************************************************************/
 
@@ -169,8 +170,13 @@ void loop() {
     resultStr = "NORMAL POWER DOWN";
   if (bufGPRS.substring(0, 6) == "+CCLK:" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n")
     resultStr = "Time";
-  if (bufGPRS.substring(0, bufGPRS.length() - 2) == "RING" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n")
+  if (bufGPRS.substring(0, bufGPRS.length() - 2) == "RING" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n") {
     resultStr = "Ringing";
+    atAnswerScreen = true;
+    atHomeScreen = false;
+    atPhoneScreen = false;
+    atTextMessageScreen = false;
+  }
   if (bufGPRS.substring(0, bufGPRS.length() - 2) == "OK" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n")
     resultStr = "OK";
   if (bufGPRS.substring(0, 6) == "+CMGR:" && bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n")
@@ -509,10 +515,6 @@ void loop() {
     // If incoming Call halt everything, clear everything
     if (resultStr == "Ringing" && oldResultStr != resultStr) {
       if (countRings == 0) {
-        atAnswerScreen = true;
-        atHomeScreen = false;
-        atPhoneScreen = false;
-        atTextMessageScreen = false;
         drawAnswerScreen();
       }
       tft.textMode();
