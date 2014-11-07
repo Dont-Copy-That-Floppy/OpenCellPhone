@@ -28,9 +28,10 @@
     @author   Pusalieth aka Jake Pring
     @license  BSD license, all text above and below must be included in
               any redistribution
- I have modified this library to include the text rotate function to use in sketch type 
- textRotate with boolean input, and a swap for vertical and horizontal scan with the functions
- scanV_flip and scanH_flip respectively, both have boolean input respectively.
+ I have modified this library to include the text rotate function 
+ textRotate with boolean input, and a swap for vertical and horizontal scan
+ with functions scanV_flip and scanH_flip respectively, both have boolean 
+ input, and corrected sleep function bug
 */
 /**************************************************************************/
 #include <SPI.h>
@@ -240,14 +241,14 @@ void Adafruit_RA8875::scanV_flip(boolean V_scan)
   if (V_scan)
     writeReg(0x20, (1 << 2));
   else 
-    writeReg(0x20, 0);
+    writeReg(0x20, (0 << 2));
 }
 void Adafruit_RA8875::scanH_flip(boolean H_scan)
 {
   if (H_scan)
     writeReg(0x20, (1 << 3));
   else 
-    writeReg(0x20, 0);
+    writeReg(0x20, (0 << 3));
 }
 /************************* Text Mode ***********************************/
 
@@ -386,7 +387,7 @@ void Adafruit_RA8875::textRotate(boolean on)
   if (on)
     writeReg(0x22, (1 << 4));
   else 
-    writeReg(0x22, 0);	
+    writeReg(0x22, (0 << 4));	
 }
 
 /**************************************************************************/
@@ -1187,7 +1188,7 @@ void Adafruit_RA8875::sleep(boolean sleep)
  if (sleep) 
    writeReg(RA8875_PWRR, RA8875_PWRR_DISPOFF | RA8875_PWRR_SLEEP);
  else
-   writeReg(RA8875_PWRR, RA8875_PWRR_DISPOFF);
+   writeReg(RA8875_PWRR, RA8875_PWRR_DISPON);
 }
 
 /************************* Low Level ***********************************/
