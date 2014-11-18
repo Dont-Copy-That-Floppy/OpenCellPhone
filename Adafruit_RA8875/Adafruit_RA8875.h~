@@ -24,16 +24,14 @@
     v1.0 - First release
 */
 /*!
-  @file     Adafruit_RA8875.cpp
-  @author   Pusalieth aka Jake Pring
-  @license  BSD license, all text above and below must be included in
-  any redistribution
-  I have modified this library to include the textRotate function with 
-  boolean input, and a swap for vertical and horizontal scan vectors
-  with functions scanV_flip and scanH_flip respectively, both have boolean 
-  input, and corrected sleep function bug
+    @file     Adafruit_RA8875.h
+    @author   Pusalieth aka Jake Pring
+    @license  BSD license, all text above and below must be included in
+              any redistribution
+ I have modified this library to include the text rotate function to use in sketch type 
+ textRotate with boolean input, and a swap for vertical and horizontal scan with the functions
+ scanV_flip and scanH_flip respectively, both have boolean input respectively.
 */
-/**************************************************************************/
 #if ARDUINO >= 100
  #include "Arduino.h"
  #include "Print.h"
@@ -49,7 +47,6 @@
 
 #ifndef _ADAFRUIT_RA8875_H
 #define _ADAFRUIT_RA8875_H
-/**************************************************************************/
 
 // Sizes!
 enum RA8875sizes { RA8875_480x272, RA8875_800x480 };
