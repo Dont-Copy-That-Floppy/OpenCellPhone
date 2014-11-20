@@ -241,13 +241,13 @@ void Adafruit_RA8875::scanH_flip(boolean H_scan)
 	if (H_scan){
 		writeCommand(0x20);
 		uint8_t temp = readData();
-		temp ^= 4;
+		temp ^= 8;
 		writeData(temp);
 	}
 	else {
 		writeCommand(0x20);
 		uint8_t temp = readData();
-		temp ^= 4;
+		temp &= ~8;
 		writeData(temp);
 	}
 }
@@ -256,13 +256,13 @@ void Adafruit_RA8875::scanV_flip(boolean V_scan)
 	if (V_scan) {
 		writeCommand(0x20);
 		uint8_t temp = readData();
-		temp ^= 2;
+		temp ^= 4;
 		writeData(temp);
 	}
 	else {
 		writeCommand(0x20);
 		uint8_t temp = readData();
-		temp ^= 2;
+		temp &= ~4;
 		writeData(temp);
 	}
 }
@@ -404,13 +404,13 @@ void Adafruit_RA8875::textRotate(boolean on)
 	if (on) {
 		writeCommand(0x22);
 		uint8_t temp = readData();
-		temp ^= 8;
+		temp ^= 16;
 		writeData(temp);
 	}
 	else {
 		writeCommand(0x22);
 		uint8_t temp = readData();
-		temp ^= 8;
+		temp &= ~16;
 		writeData(temp);
 	}
 }
