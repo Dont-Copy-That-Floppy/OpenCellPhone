@@ -402,13 +402,13 @@ void Adafruit_RA8875::textEnlarge(uint8_t scale)
 void Adafruit_RA8875::textRotate(boolean on)
 {
 	if (on) {
-		writeCommand(0x20);
+		writeCommand(0x22);
 		uint8_t temp = readData();
 		temp ^= 8;
 		writeData(temp);
 	}
 	else {
-		writeCommand(0x20);
+		writeCommand(0x22);
 		uint8_t temp = readData();
 		temp ^= 8;
 		writeData(temp);
