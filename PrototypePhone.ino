@@ -800,6 +800,7 @@ void loop() {
   //  PASSCODE LOCK SCREEN
   //==========================================================
   if (atPasscodeScreen == false && displaySleep == true && millis() >= (startPasscodeLock + passcodeTimeout)) {
+    tft.scanV_flip(false);
     drawPasscodeScreen();
     atHomeScreen = false;
     atPhoneScreen = false;
@@ -1018,6 +1019,7 @@ void loop() {
           if (tx > 847 && tx < 1024 && ty > 786 && ty < 1024) {
             tx = 0;
             ty = 0;
+            tft.scanV_flip(false);
           }
           //=========================
           //      BACK BUTTON
@@ -1025,6 +1027,10 @@ void loop() {
           else if (tx > 0 && tx < 170 && ty > 786 && ty < 1024) {
             tx = 0;
             ty = 0;
+            tft.scanV_flip(false);
+            Serial1.write(sendCharText);
+            bytesToSend = 110;
+            delay(delayforUart);
             drawTextMessageScreen();
             atTextMessageScreen = true;
             atSendTextScreen = false;
@@ -1868,79 +1874,80 @@ void drawAnswerScreen () {
 }
 void drawMessagePad() {
   tft.scanV_flip(true);
+  tft.textRotate(false);
   tft.graphicsMode();
   tft.fillScreen(RA8875_BLACK);
-  tft.fillRect(0, 215, 70, 60, RA8875_GREEN);
-  tft.fillRect(400, 215, 70, 60, RA8875_RED);
+  tft.fillRect(0, 0, 70, 50, RA8875_GREEN);
+  tft.fillRect(409, 0, 70, 50, RA8875_RED);
   tft.textMode();
   tft.textColor(RA8875_WHITE, RA8875_GREEN);
+  tft.textSetCursor(18, 18);
+  tft.textWrite("SEND");
   tft.textColor(RA8875_WHITE, RA8875_RED);
-  tft.textSetCursor(0, 250);
-  tft.textWrite("Send");
-  tft.textSetCursor(432, 250);
-  tft.textWrite("Back");
+  tft.textSetCursor(427, 18);
+  tft.textWrite("BACK");
   tft.textColor(RA8875_WHITE, RA8875_BLACK);
   tft.textEnlarge(0);
   delay(2);
-  tft.textSetCursor(0, 46);
+  tft.textSetCursor(15, 141);
   tft.textWrite("Q");
-  tft.textSetCursor(48, 46);
+  tft.textSetCursor(63, 141);
   tft.textWrite("W");
-  tft.textSetCursor(96, 46);
+  tft.textSetCursor(111, 141);
   tft.textWrite("E");
-  tft.textSetCursor(144, 46);
+  tft.textSetCursor(159, 141);
   tft.textWrite("R");
-  tft.textSetCursor(192, 46);
+  tft.textSetCursor(207, 141);
   tft.textWrite("T");
-  tft.textSetCursor(240, 46);
+  tft.textSetCursor(255, 141);
   tft.textWrite("Y");
-  tft.textSetCursor(288, 46);
+  tft.textSetCursor(303, 141);
   tft.textWrite("U");
-  tft.textSetCursor(336, 46);
+  tft.textSetCursor(351, 141);
   tft.textWrite("I");
-  tft.textSetCursor(384, 46);
+  tft.textSetCursor(399, 141);
   tft.textWrite("O");
-  tft.textSetCursor(432, 46);
+  tft.textSetCursor(447, 141);
   tft.textWrite("P");
-  tft.textSetCursor(0, 92);
+  tft.textSetCursor(15, 187);
   tft.textWrite("A");
-  tft.textSetCursor(48, 92);
+  tft.textSetCursor(63, 187);
   tft.textWrite("S");
-  tft.textSetCursor(96, 92);
+  tft.textSetCursor(111, 187);
   tft.textWrite("D");
-  tft.textSetCursor(144, 92);
+  tft.textSetCursor(159, 187);
   tft.textWrite("F");
-  tft.textSetCursor(192, 92);
+  tft.textSetCursor(207, 187);
   tft.textWrite("G");
-  tft.textSetCursor(240, 92);
+  tft.textSetCursor(255, 187);
   tft.textWrite("H");
-  tft.textSetCursor(288, 92);
+  tft.textSetCursor(303, 187);
   tft.textWrite("J");
-  tft.textSetCursor(336, 92);
+  tft.textSetCursor(351, 187);
   tft.textWrite("K");
-  tft.textSetCursor(384, 92);
+  tft.textSetCursor(399, 187);
   tft.textWrite("L");
-  tft.textSetCursor(432, 92);
+  tft.textSetCursor(447, 187);
   tft.textWrite("; ");
-  tft.textSetCursor(0, 138);
+  tft.textSetCursor(15, 233);
   tft.textWrite("Z");
-  tft.textSetCursor(48, 138);
+  tft.textSetCursor(63, 233);
   tft.textWrite("X");
-  tft.textSetCursor(96, 138);
+  tft.textSetCursor(111, 233);
   tft.textWrite("C");
-  tft.textSetCursor(144, 138);
+  tft.textSetCursor(159, 233);
   tft.textWrite("V");
-  tft.textSetCursor(192, 138);
+  tft.textSetCursor(207, 233);
   tft.textWrite("B");
-  tft.textSetCursor(240, 138);
+  tft.textSetCursor(255, 233);
   tft.textWrite("N");
-  tft.textSetCursor(288, 138);
+  tft.textSetCursor(303, 233);
   tft.textWrite("M");
-  tft.textSetCursor(336, 138);
+  tft.textSetCursor(351, 233);
   tft.textWrite(", ");
-  tft.textSetCursor(384, 138);
+  tft.textSetCursor(399, 233);
   tft.textWrite(".");
-  tft.textSetCursor(432, 138);
+  tft.textSetCursor(447, 233);
   tft.textWrite(" / ");
   tft.textRotate(true);
 }
