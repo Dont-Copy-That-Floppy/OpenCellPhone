@@ -48,7 +48,7 @@
 #define RA8875_CS 9
 #define RA8875_RESET 10
 
-// function call tft to use RA8875
+// mew object tft to use RA8875
 Adafruit_RA8875 tft = Adafruit_RA8875(RA8875_CS, RA8875_RESET);
 
 // Initialize touch screen place values
@@ -122,7 +122,7 @@ int powerButton = 12;
 // Delay for write on Serial1 baud, bitDepth is CPU/MCU/MPU bits
 double bitDepth = 8;
 double buadRateGPRS = 1200;
-unsigned int delayForUart = ((buadRateGPRS / 8.0) / (bitDepth + 2.0)) * 1000.0;
+unsigned int delayForUart = (buadRateGPRS / (bitDepth + 2.0));
 
 //==================================================================================================================================================
 
@@ -185,16 +185,15 @@ void setup() {
 
   // Update time from network
   Serial1.write("AT+CLTS=1\r");
-  delay(delayForUart / 10);
+  delay((10 / delayForUart) * 1000);
 
   // Make sure Caller ID is on
   Serial1.write("AT+CLIP=1\r");
-  delay(delayForUart / 10);
+  delay((10 / delayForUart) * 1000);
 
   // Enable Sleep Mode on SIM900 (wake-up on serial)
   //Serial1.write("AT+CSCLK=2\r");
-  //bytesToSend = 11;
-  //delay(delayForUart);
+  delay((11 / delayForUart) * 1000);
 
   lastInteract = millis();
   startPasscodeLock = millis();
@@ -507,7 +506,7 @@ void loop() {
       atAnswerScreen = false;
       atPasscodeScreen = true;
       Serial1.write("AT+CCLK?\r");
-      delay(delayForUart / 9);
+      delay((9 / delayForUart) * 1000);
     }
 
     //==========================================================
@@ -667,7 +666,7 @@ void loop() {
   else if (millis() / 1000 >= next60 + every60) {
     every60 = millis() / 1000;
     Serial1.write("AT+CCLK?\r");
-    delay(delayForUart / 9);
+    delay((9 / delayForUart) * 1000);
   }
   //===========================================================================================================================
 
@@ -691,17 +690,20 @@ void loop() {
   tft.graphicsMode();
 
   // Set scale for touch values
-  float xScale = 1200.0F / tft.width();
-  float yScale = 1200.0F / tft.height();
-
+  float xScale = 1024.0F / tft.width();
+  float yScale = 1024.0F / tft.height();
 
   if (!digitalRead(RA8875_INT) && tft.touched()) {
     tft.touchRead(&tx, &ty);
+    delay(20);
     printTouchValues();
-    if (millis() >= (lastInteract + 500)) {
+    if (millis() >= (lastInteract + 350)) {
+      Serial.println("Touch Activated");
+      Serial.println(millis());
       lastInteract = millis();
+      printTouchValues();
 
-      if (atPasscodeScreen != true) {
+      if (!atPasscodeScreen) {
         //================================================================================================
         //  HOME SCREEN TOUCH
         //================================================================================================
@@ -732,7 +734,7 @@ void loop() {
             missedCalls = '0';
             newMessages = '0';
             Serial1.write(sendCharText);
-            delay(delayForUart / 11);
+            delay((11 / delayForUart) * 1000);
             drawTextMessageScreen();
             atTextMessageScreen = true;
             atHomeScreen = false;
@@ -763,7 +765,7 @@ void loop() {
               missedCalls = '0';
               newMessages = '0';
               Serial1.write(sendCharText);
-              delay(delayForUart / 11);
+              delay((11 / delayForUart) * 1000);
               drawTextMessageScreen();
               atTextMessageScreen = true;
               atHomeScreen = false;
@@ -814,7 +816,7 @@ void loop() {
             ty = 0;
             sendCharText[6] = 'D';
             Serial1.write(sendCharText);
-            delay(delayForUart / 11);
+            delay((11 / delayForUart) * 1000);
             sendCharText[6] = 'R';
             drawTextMessageScreen();
             tft.textMode();
@@ -831,8 +833,8 @@ void loop() {
             } else {
               sendCharText[9] += 1;
             }
-            Serial1.write(sendCharText);
-            delay(delayForUart / 11);
+            //Serial1.write(sendCharText);
+            //delay((11 / delayForUart) * 1000);
           }
 
           //=========================
@@ -849,7 +851,8 @@ void loop() {
               sendCharText[9] += 1;
             }
             Serial1.write(sendCharText);
-            delay(delayForUart / 11);
+            delay((11 / delayForUart) * 1000);
+
             // Prepare to display message
             tft.textMode();
             tft.textColor(RA8875_WHITE, RA8875_BLACK);
@@ -878,7 +881,7 @@ void loop() {
               sendCharText[9] -= 1;
             }
             Serial1.write(sendCharText);
-            delay(delayForUart / 11);
+            delay((11 / delayForUart) * 1000);
             // Prepare to display message
             tft.textMode();
             tft.textColor(RA8875_WHITE, RA8875_BLACK);
@@ -902,7 +905,7 @@ void loop() {
             sendCharText[8] = '0';
             sendCharText[9] = '1';
             Serial1.write(sendCharText);
-            delay(delayForUart / 11);
+            delay((11 / delayForUart) * 1000);
           }
         }
 
@@ -926,7 +929,7 @@ void loop() {
             ty = 0;
             tft.scanV_flip(false);
             Serial1.write(sendCharText);
-            delay(delayForUart / 11);
+            delay((11 / delayForUart) * 1000);
             drawTextMessageScreen();
             atTextMessageScreen = true;
             atSendTextScreen = false;
@@ -949,7 +952,7 @@ void loop() {
           tx = 0;
           ty = 0;
           Serial1.write("ATA\r");
-          delay(delayForUart / 4);
+          delay((4 / delayForUart) * 1000);
           inCall = true;
           tft.fillRect(75, 20, 150, 250, RA8875_BLACK);
           tft.textMode();
@@ -1017,7 +1020,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=1\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1040,7 +1043,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=2\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1063,7 +1066,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=3\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1086,7 +1089,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=4\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1109,7 +1112,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=5\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1132,7 +1135,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=6\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1155,7 +1158,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=7\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1178,7 +1181,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=8\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1201,7 +1204,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=9\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1224,7 +1227,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=*\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1247,7 +1250,7 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=0\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
@@ -1270,11 +1273,11 @@ void loop() {
           // In call DTMF Tone
           if (inCall) {
             Serial1.write("AT+VTS=#\r");
-            delay(delayForUart / 9);
+            delay((9 / delayForUart) * 1000);
           }
         }
 
-        if (atPasscodeScreen != true) {
+        if (!atPasscodeScreen) {
           //=========================
           //          CALL
           //=========================
@@ -1284,7 +1287,7 @@ void loop() {
             callCharBuf[place] = ';';
             callCharBuf[place + 1] = '\r';
             Serial1.write(callCharBuf);
-            delay(delayForUart / 16);
+            delay((16 / delayForUart) * 1000);
             inCall = true;
             tft.textMode();
             tft.textColor(RA8875_WHITE, RA8875_BLACK);
@@ -1321,7 +1324,7 @@ void loop() {
           ty = 0;
           inCall = false;
           Serial1.write("ATH\r");
-          delay(delayForUart / 4);
+          delay((4 / delayForUart) * 1000);
           tft.textMode();
           tft.textColor(RA8875_WHITE, RA8875_BLACK);
           tft.textEnlarge(2);
@@ -1342,7 +1345,7 @@ void loop() {
       //================================================================================================
       //  PASSCODE SCREEN
       //================================================================================================
-      if (atPasscodeScreen && atPhoneScreen != true) {
+      if (atPasscodeScreen && !atPhoneScreen) {
         int topRow_xMin = 647;
         int topRow_xMax = 737;
         int secondRow_xMin = 486;
@@ -1567,13 +1570,15 @@ void loop() {
           }
         }
       }
+    } else {
+      delay(350);
     }
   }
 
   //================================================================================================
   //  CLEAR CALL BUFFER AT 17 CHARACTERS
   //================================================================================================
-  if (inCall != true && place > 17) {
+  if (!inCall && place > 17) {
     place = 3;
 
     // clear number display
