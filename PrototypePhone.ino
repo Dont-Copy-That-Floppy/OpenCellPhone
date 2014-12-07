@@ -698,8 +698,6 @@ void loop() {
     delay(20);
     printTouchValues();
     if (millis() >= (lastInteract + 350)) {
-      Serial.println("Touch Activated");
-      Serial.println(millis());
       lastInteract = millis();
       printTouchValues();
 
@@ -1979,6 +1977,9 @@ void printTime() {
   //=========================
   time[0] = bufGPRS.charAt(time_Start + 10);
   time[1] = bufGPRS.charAt(time_Start + 11);
+  int am_pm = 0;
+  am_pm += time[0] - 48;
+  am_pm += time[1] - 48;
 
   //=========================
   //      MINUTE FORMAT
@@ -1990,11 +1991,10 @@ void printTime() {
   //=========================
   //        AM & PM
   //=========================
-  if (time[0] <= '1' && time[1] <= '2') {
+  if (am_pm <= 12) {
     time[5] = 'a';
     time[6] = 'm';
-  }
-  else {
+  } else {
     time[5] = 'p';
     time[6] = 'm';
     if (time[0] == '2' && time[1] < '2') {
