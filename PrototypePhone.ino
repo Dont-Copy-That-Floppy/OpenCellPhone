@@ -598,26 +598,22 @@ void loop() {
   //==========================================================
   if (!digitalRead(powerButton) && millis() >= (lastInteract + 500)) {
     if (displaySleep) {
-      delay(15);
-      tft.displayOn(true);
-      delay(15);
       tft.PWM1out(255);
-      delay(15);
+      delay(20);
+      tft.displayOn(true);
       tft.touchEnable(true);
-      delay(15);
+      delay(20);
       displaySleep = false;
-      delay(15);
       lastInteract = millis();
     } else {
-      lastInteract = millis();
-      tft.displayOn(false);
-      delay(15);
-      tft.PWM1out(0);
-      delay(15);
-      tft.touchEnable(false);
-      delay(15);
-      displaySleep = true;
       drawPasscodeScreen();
+      lastInteract = millis();
+      tft.PWM1out(0);
+      delay(20);
+      tft.displayOn(false);
+      tft.touchEnable(false);
+      delay(20);
+      displaySleep = true;
       atHomeScreen = false;
       atPhoneScreen = false;
       atTextMessageScreen = false;
