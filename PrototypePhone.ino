@@ -1977,8 +1977,8 @@ void printTime() {
   //=========================
   time[0] = bufGPRS.charAt(time_Start + 10);
   time[1] = bufGPRS.charAt(time_Start + 11);
-  int am_pm = 0;
-  am_pm += time[0] - 48;
+  unsigned int am_pm = 0;
+  am_pm += (time[0] - 48) * 10;
   am_pm += time[1] - 48;
 
   //=========================
