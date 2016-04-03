@@ -22,8 +22,9 @@
   Display Missed Calls
   Passcode along with 5 second lapse before start
   Notification LEDs
-  Display has Timeout sleep based on Touch Inactivity
+  Display has Timeout sleep based on Touch InactivitouchValue_Y
   Automatic Power On for SIM Module
+  Screen Darkening Time before Sleep mode
 
 *******************************************************************************************************/
 
@@ -52,7 +53,7 @@
 Adafruit_RA8875 tft = Adafruit_RA8875(RA8875_CS, RA8875_RESET);
 
 // Initialize touch screen place values
-uint16_t tx = 0, ty = 0;
+uint16_t touchValue_X = 0, touchValue_Y = 0;
 
 // Keep track of time since Last Touched event
 unsigned long int lastInteract = 0;
@@ -100,9 +101,10 @@ boolean atAnsweredScreen = false;
 boolean atPasscodeScreen = true;
 boolean atSendTextScreen = false;
 
-// Display State
+// Display State and Times
 boolean displaySleep = false;
 unsigned int displayTimeout = 45 * 1000;
+unsigned int sleepDarken = 5 * 1000;
 
 // realPasscode is your passcode, displays 8 characters correctly but technically can be as long as desired
 String realPasscode = "1234";
@@ -641,6 +643,10 @@ void loop() {
     displaySleep = true;
     delay(10);
   }
+  else if (!displaySleep && millis() >= (lastInteract + (displayTimeout - sleepDarken))) {
+    tft.PWM1out(65);
+    delay(10);
+  }
 
   //==========================================================
   //  PASSCODE LOCK SCREEN
@@ -731,14 +737,26 @@ void loop() {
   tft.graphicsMode();
 
   // Set scale for touch values
-  //***********************float xScale = 1024.0F / tft.width();
-  //***********************float yScale = 1024.0F / tft.height();
+  //******float xScale = 1024.0F / tft.width();
+  //******float yScale = 1024.0F / tft.height();
 
   if (!digitalRead(RA8875_INT) && tft.touched()) {
+    touchValue_X = 0;
+    touchValue_Y = 0;
+    unsigned int averageValue = 1;
+    uint16_t tx = 0, ty = 0;
+averaging:
     tft.touchRead(&tx, &ty);
-    delay(150);
-    //printTouchValues();
-    if (millis() >= (lastInteract + 340)) {
+    touchValue_X += tx;
+    touchValue_Y += ty;
+    if (!digitalRead(RA8875_INT) || tft.touched()) {
+      averageValue++;
+      goto averaging;
+    }
+    touchValue_X /= averageValue;
+    touchValue_Y /= averageValue;
+    printTouchValues();
+    if (millis() >= (lastInteract + 100)) {
       lastInteract = millis();
 
       if (!atPasscodeScreen) {
@@ -750,9 +768,9 @@ void loop() {
           //=========================
           //      PHONE BUTTON
           //=========================
-          if (tx > 128 && tx < 300 && ty > 204 && ty < 440) {
-            tx = 0;
-            ty = 0;
+          if (touchValue_X > 128 && touchValue_X < 300 && touchValue_Y > 204 && touchValue_Y < 440) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             missedCalls = '0';
             newMessages = '0';
             resultStr = "";
@@ -766,9 +784,9 @@ void loop() {
           //=========================
           //      SMS BUTTON
           //=========================
-          else if (tx > 128 && tx < 300 && ty > 580 && ty < 815) {
-            tx = 0;
-            ty = 0;
+          else if (touchValue_X > 128 && touchValue_X < 300 && touchValue_Y > 580 && touchValue_Y < 815) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             missedCalls = '0';
             newMessages = '0';
             Serial1.write(sendCharText);
@@ -797,9 +815,9 @@ void loop() {
           //    VIEW NEW MESSAGE
           //=========================
           else if (viewMessage) {
-            if (tx > 490 && tx < 576 && ty > 163 && ty < 756) {
-              tx = 0;
-              ty = 0;
+            if (touchValue_X > 490 && touchValue_X < 576 && touchValue_Y > 163 && touchValue_Y < 756) {
+              touchValue_X = 0;
+              touchValue_Y = 0;
               missedCalls = '0';
               newMessages = '0';
               Serial1.write(sendCharText);
@@ -822,9 +840,9 @@ void loop() {
           //=========================
           //          SEND
           //=========================
-          if (tx > 56 && tx < 159 && ty > 130 && ty < 353) {
-            tx = 0;
-            ty = 0;
+          if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 130 && touchValue_Y < 353) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             drawMessagePad();
             atSendTextScreen = true;
             atHomeScreen = false;
@@ -836,9 +854,9 @@ void loop() {
           //=========================
           //      HOME BUTTON
           //=========================
-          else if (tx > 56 && tx < 159 && ty > 383 && ty < 604) {
-            tx = 0;
-            ty = 0;
+          else if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 383 && touchValue_Y < 604) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             drawHomeScreen();
             atHomeScreen = true;
             atPhoneScreen = false;
@@ -849,9 +867,9 @@ void loop() {
           //=========================
           //        DELETE
           //=========================
-          else if (tx > 56 && tx < 159 && ty > 671 && ty < 881) {
-            tx = 0;
-            ty = 0;
+          else if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 671 && touchValue_Y < 881) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             sendCharText[6] = 'D';
             Serial1.write(sendCharText);
             delay((11 / delayForUart) * 1000);
@@ -878,9 +896,9 @@ void loop() {
           //=========================
           //      NEXT BUTTON
           //=========================
-          else if (tx > 733 && tx < 853 && ty > 530 && ty < 690) {
-            tx = 0;
-            ty = 0;
+          else if (touchValue_X > 733 && touchValue_X < 853 && touchValue_Y > 530 && touchValue_Y < 690) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             drawTextMessageScreen();
             if (sendCharText[9] == '9') {
               sendCharText[8] += 1;
@@ -908,9 +926,9 @@ void loop() {
           //=========================
           //    PREVIOUS BUTTON
           //=========================
-          else if (tx > 733 && tx < 853 && ty > 700 && ty < 863) {
-            tx = 0;
-            ty = 0;
+          else if (touchValue_X > 733 && touchValue_X < 853 && touchValue_Y > 700 && touchValue_Y < 863) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             if (sendCharText[8] <= '0' && sendCharText[9] <= '1') {
               // Display To User, we're already at index 1
             }
@@ -942,9 +960,9 @@ void loop() {
           //=========================
           //      RESET INDEX
           //=========================
-          else if (tx > 846 && tx < 907 && ty > 470 && ty < 592) {
-            tx = 0;
-            ty = 0;
+          else if (touchValue_X > 846 && touchValue_X < 907 && touchValue_Y > 470 && touchValue_Y < 592) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             sendCharText[8] = '0';
             sendCharText[9] = '1';
             Serial1.write(sendCharText);
@@ -959,17 +977,17 @@ void loop() {
           //=========================
           //      SEND BUTTON
           //=========================
-          if (tx > 847 && tx < 1024 && ty > 786 && ty < 1024) {
-            tx = 0;
-            ty = 0;
+          if (touchValue_X > 847 && touchValue_X < 1024 && touchValue_Y > 786 && touchValue_Y < 1024) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             tft.scanV_flip(false);
           }
           //=========================
           //      BACK BUTTON
           //=========================
-          else if (tx > 0 && tx < 170 && ty > 786 && ty < 1024) {
-            tx = 0;
-            ty = 0;
+          else if (touchValue_X > 0 && touchValue_X < 170 && touchValue_Y > 786 && touchValue_Y < 1024) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             tft.scanV_flip(false);
             Serial1.write(sendCharText);
             delay((11 / delayForUart) * 1000);
@@ -994,9 +1012,9 @@ void loop() {
         //=========================
         //      ANSWER BUTTON
         //=========================
-        if (tx > 119 && tx < 311 && ty > 196 && ty < 456) {
-          tx = 0;
-          ty = 0;
+        if (touchValue_X > 119 && touchValue_X < 311 && touchValue_Y > 196 && touchValue_Y < 456) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           Serial1.write("ATA\r");
           delay((4 / delayForUart) * 1000);
           inCall = true;
@@ -1023,9 +1041,9 @@ void loop() {
         //=========================
         //      IGNORE BUTTON
         //=========================
-        else if (tx > 119 && tx < 311 && ty > 568 && ty < 826) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > 119 && touchValue_X < 311 && touchValue_Y > 568 && touchValue_Y < 826) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           Serial1.write("AT H\r");
           delay((11 / delayForUart) * 1000);
           inCall = false;
@@ -1071,9 +1089,9 @@ void loop() {
         //=========================
         //          #1
         //=========================
-        if (tx > topRow_xMin && tx < topRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '1';
           place++;
           tft.textMode();
@@ -1094,9 +1112,9 @@ void loop() {
         //=========================
         //          #2
         //=========================
-        else if (tx > topRow_xMin && tx < topRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '2';
           place++;
           tft.textMode();
@@ -1117,9 +1135,9 @@ void loop() {
         //=========================
         //          #3
         //=========================
-        else if (tx > topRow_xMin && tx < topRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '3';
           place++;
           tft.textMode();
@@ -1140,9 +1158,9 @@ void loop() {
         //=========================
         //          #4
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '4';
           place++;
           tft.textMode();
@@ -1163,9 +1181,9 @@ void loop() {
         //=========================
         //          #5
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '5';
           place++;
           tft.textMode();
@@ -1186,9 +1204,9 @@ void loop() {
         //=========================
         //          #6
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '6';
           place++;
           tft.textMode();
@@ -1209,9 +1227,9 @@ void loop() {
         //=========================
         //          #7
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '7';
           place++;
           tft.textMode();
@@ -1232,9 +1250,9 @@ void loop() {
         //=========================
         //          #8
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '8';
           place++;
           tft.textMode();
@@ -1255,9 +1273,9 @@ void loop() {
         //=========================
         //          #9
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '9';
           place++;
           tft.textMode();
@@ -1278,9 +1296,9 @@ void loop() {
         //=========================
         //           *
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '*';
           place++;
           tft.textMode();
@@ -1301,9 +1319,9 @@ void loop() {
         //=========================
         //          #0
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '0';
           place++;
           tft.textMode();
@@ -1324,9 +1342,9 @@ void loop() {
         //=========================
         //           #
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '#';
           place++;
           tft.textMode();
@@ -1348,9 +1366,9 @@ void loop() {
           //=========================
           //          CALL
           //=========================
-          if (tx > 56 && tx < 159 && ty > 130 && ty < 353) {
-            tx = 0;
-            ty = 0;
+          if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 130 && touchValue_Y < 353) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             callCharBuf[place] = ';';
             callCharBuf[place + 1] = '\r';
             Serial1.write(callCharBuf);
@@ -1374,9 +1392,9 @@ void loop() {
           //=========================
           //      HOME BUTTON
           //=========================
-          else if (tx > 56 && tx < 159 && ty > 383 && ty < 604) {
-            tx = 0;
-            ty = 0;
+          else if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 383 && touchValue_Y < 604) {
+            touchValue_X = 0;
+            touchValue_Y = 0;
             drawHomeScreen();
             atHomeScreen = true;
             atPhoneScreen = false;
@@ -1389,9 +1407,9 @@ void loop() {
         //=========================
         //       END/HANG UP
         //=========================
-        if (tx > 56 && tx < 159 && ty > 671 && ty < 881) {
-          tx = 0;
-          ty = 0;
+        if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 671 && touchValue_Y < 881) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           inCall = false;
           Serial1.write("ATH\r");
           delay((4 / delayForUart) * 1000);
@@ -1442,9 +1460,9 @@ void loop() {
         //=========================
         //          #1
         //=========================
-        if (tx > topRow_xMin && tx < topRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '1';
           place++;
           tft.textMode();
@@ -1465,9 +1483,9 @@ void loop() {
         //=========================
         //          #2
         //=========================
-        else if (tx > topRow_xMin && tx < topRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '2';
           place++;
           tft.textMode();
@@ -1488,9 +1506,9 @@ void loop() {
         //=========================
         //          #3
         //=========================
-        else if (tx > topRow_xMin && tx < topRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '3';
           place++;
           tft.textMode();
@@ -1511,9 +1529,9 @@ void loop() {
         //=========================
         //          #4
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '4';
           place++;
           tft.textMode();
@@ -1534,9 +1552,9 @@ void loop() {
         //=========================
         //          #5
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '5';
           place++;
           tft.textMode();
@@ -1557,9 +1575,9 @@ void loop() {
         //=========================
         //          #6
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '6';
           place++;
           tft.textMode();
@@ -1580,9 +1598,9 @@ void loop() {
         //=========================
         //          #7
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '7';
           place++;
           tft.textMode();
@@ -1603,9 +1621,9 @@ void loop() {
         //=========================
         //          #8
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '8';
           place++;
           tft.textMode();
@@ -1626,9 +1644,9 @@ void loop() {
         //=========================
         //          #9
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '9';
           place++;
           tft.textMode();
@@ -1649,9 +1667,9 @@ void loop() {
         //=========================
         //           *
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '*';
           place++;
           tft.textMode();
@@ -1672,9 +1690,9 @@ void loop() {
         //=========================
         //          #0
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '0';
           place++;
           tft.textMode();
@@ -1695,9 +1713,9 @@ void loop() {
         //=========================
         //           #
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           callCharBuf[place] = '#';
           place++;
           tft.textMode();
@@ -1718,9 +1736,9 @@ void loop() {
         //=========================
         //       END/HANG UP
         //=========================
-        if (tx > 56 && tx < 159 && ty > 671 && ty < 881) {
-          tx = 0;
-          ty = 0;
+        if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 671 && touchValue_Y < 881) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           inCall = false;
           Serial1.write("ATH\r");
           delay((4 / delayForUart) * 1000);
@@ -1770,9 +1788,9 @@ void loop() {
         //=========================
         //          #1
         //=========================
-        if (tx > topRow_xMin && tx < topRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "1";
           passcodePlace++;
           tft.textMode();
@@ -1786,9 +1804,9 @@ void loop() {
         //=========================
         //          #2
         //=========================
-        else if (tx > topRow_xMin && tx < topRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "2";
           passcodePlace++;
           tft.textMode();
@@ -1802,9 +1820,9 @@ void loop() {
         //=========================
         //          #3
         //=========================
-        else if (tx > topRow_xMin && tx < topRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "3";
           passcodePlace++;
           tft.textMode();
@@ -1818,9 +1836,9 @@ void loop() {
         //=========================
         //          #4
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "4";
           passcodePlace++;
           tft.textMode();
@@ -1834,9 +1852,9 @@ void loop() {
         //=========================
         //          #5
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "5";
           passcodePlace++;
           tft.textMode();
@@ -1850,9 +1868,9 @@ void loop() {
         //=========================
         //          #6
         //=========================
-        else if (tx > secondRow_xMin && tx < secondRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "6";
           passcodePlace++;
           tft.textMode();
@@ -1866,9 +1884,9 @@ void loop() {
         //=========================
         //          #7
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "7";
           passcodePlace++;
           tft.textMode();
@@ -1882,9 +1900,9 @@ void loop() {
         //=========================
         //          #8
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "8";
           passcodePlace++;
           tft.textMode();
@@ -1898,9 +1916,9 @@ void loop() {
         //=========================
         //          #9
         //=========================
-        else if (tx > thirdRow_xMin && tx < thirdRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "9";
           passcodePlace++;
           tft.textMode();
@@ -1914,9 +1932,9 @@ void loop() {
         //=========================
         //           <-
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > leftColumn_yMin && ty < leftColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode = passcode.substring(0, passcode.length() - 1);
           tft.textMode();
           tft.textColor(RA8875_WHITE, RA8875_BLACK);
@@ -1930,9 +1948,9 @@ void loop() {
         //=========================
         //          #0
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > middleColumn_yMin && ty < middleColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           passcode += "0";
           passcodePlace++;
           tft.textMode();
@@ -1946,9 +1964,9 @@ void loop() {
         //=========================
         //           OK
         //=========================
-        else if (tx > bottomRow_xMin && tx < bottomRow_xMax && ty > rightColumn_yMin && ty < rightColumn_yMax) {
-          tx = 0;
-          ty = 0;
+        else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+          touchValue_X = 0;
+          touchValue_Y = 0;
           if (passcode == realPasscode) {
             tft.graphicsMode();
             drawHomeScreen();
@@ -2578,14 +2596,14 @@ void fullScreenClear() {
   tft.fillRect(0, 0, 479, 279, RA8875_BLACK);
 }
 void printTouchValues() {
-  if (tx > 50 && ty > 50) {
+  if (touchValue_X > 50 && touchValue_Y > 50) {
     Serial.print("___________________________\r\n");
     Serial.print("Touched:\r\n");
-    Serial.print("         tX position is |");
-    Serial.print(tx);
+    Serial.print("         touchValue_X position is |");
+    Serial.print(touchValue_X);
     Serial.print("|\r\n");
-    Serial.print("         tY position is |");
-    Serial.print(ty);
+    Serial.print("         touchValue_Y position is |");
+    Serial.print(touchValue_Y);
     Serial.print("|\r\n");
     Serial.print("___________________________\r\n");
   }
