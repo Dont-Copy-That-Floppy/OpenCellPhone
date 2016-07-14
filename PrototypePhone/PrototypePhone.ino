@@ -14,6 +14,7 @@
   In call DTMF Tones
   Read incoming data from SIM Module, and provide functions and executions based on data
   Display prompt for incoming texts
+  Display time in a human readable format including AM/PM and updated at 00 seconds
   Seperate and Defined Screens with functions and touch values per screen (ie. Phone vs SMS)
   Read individual texts defined/sorted by index
   Delete SMS
@@ -21,6 +22,7 @@
   Display Missed Calls
   Passcode along with 5 second lapse before start
   Notification LEDs
+  Display has timeout sleep based on Touch Inactivity
   Automatic Power On for SIM Module
   Screen Darkening clockTime before Sleep mode
 
