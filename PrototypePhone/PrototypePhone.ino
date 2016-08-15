@@ -59,7 +59,7 @@ uint16_t touchValue_X = 0, touchValue_Y = 0;
 boolean touched = false;
 
 // Keep track of clockTime since Last Touched event
-unsigned long int lastInteract = 0;
+unsigned long lastInteract = 0;
 
 // Call Buffer
 char callCharBuf[20] = {'A', 'T', 'D'};
@@ -140,6 +140,9 @@ unsigned int delayForUart = (buadRateGPRS / (bitDepth + 2.0));
 // Keep track of in call clockTime
 unsigned int prevCallclockTime = 0;
 unsigned int callclockTime = 0;
+
+// Seconds of time
+unsigned int = 0;
 
 //==================================================================================================================================================
 
@@ -255,6 +258,11 @@ void loop() {
 
   //==================================================================================================================================================
 
+  //=========================
+  //     Time in Seconds
+  //=========================
+  seconds = seconds;
+
 
   //=========================
   //      SERIAL READS
@@ -279,7 +287,7 @@ void loop() {
       bufGPRS = bufGPRS.substring(2, bufGPRS.length());
     if (bufGPRS.substring(0, 6) == "+CCLK:") {
       displayclockTime = true;
-      every60 = millis() / 1000;
+      every60 = seconds;
     }
     else if (bufGPRS.substring(0, 5) == "+CBC:")
       displayBattery = true;
@@ -610,8 +618,8 @@ void loop() {
     Serial1.write("AT+CBC\r");
     delay((7 / delayForUart) * 1000);
   }
-  else if (millis() / 1000 >= next60 + every60) {
-    every60 = millis() / 1000;
+  else if (seconds >= next60 + every60) {
+    every60 = seconds;
     Serial1.write("AT+CCLK?\r");
     delay((9 / delayForUart) * 1000);
   }
@@ -727,7 +735,7 @@ void loop() {
   //      IN CALL DURATION
   //==========================================================
   if (inCall) {
-    unsigned int temp = millis() / 1000;
+    unsigned int temp = seconds;
     if (temp >= prevCallclockTime + 1) {
       prevCallclockTime = temp;
       char callclockTimeChar[5];
@@ -1053,7 +1061,7 @@ void loop() {
         atAnsweredScreen = true;
         countRings = 0;
         callclockTime = 0;
-        prevCallclockTime = millis() / 1000;
+        prevCallclockTime = seconds;
       }
 
       //=========================
