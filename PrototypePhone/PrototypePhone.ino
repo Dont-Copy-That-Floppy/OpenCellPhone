@@ -99,8 +99,8 @@ char battLevel[2];
 char battVoltage[4];
 
 // Keep track of clockTime elapsed since last query for clockTime (defined per 60 seconds)
-unsigned long int next60 = 60;
-unsigned long int every60 = 0;
+unsigned long next60 = 60;
+unsigned long every60 = 0;
 boolean displayclockTime = false;
 char clockTime[20];
 
@@ -122,7 +122,7 @@ unsigned int sleepDarken = 10 * 1000;
 String realPasscode = "1234";
 String passcode = "";
 int passcodePlace = 0;
-unsigned long int startPasscodeLock = 0;
+unsigned long startPasscodeLock = 0;
 unsigned int passcodeclockTimeout = 10 * 1000;
 
 // Notification LEDs
