@@ -99,9 +99,9 @@ char battLevel[2];
 char battVoltage[4];
 
 // Keep track of clockTime elapsed since last query for clockTime (defined per 60 seconds)
-unsigned long next60 = 60;
-unsigned long every60 = 0;
-boolean displayclockTime = false;
+unsigned long currentTime = 0;
+unsigned long displayTime = 60;
+boolean displayClockTime = false;
 char clockTime[20];
 
 // Define where on the phone the User is and what part of the phone functions to jump to
@@ -115,7 +115,7 @@ boolean atSendTextScreen = false;
 
 // Display State and clockTimes
 boolean displaySleep = false;
-unsigned int displayclockTimeout = 60 * 1000;
+unsigned int displayClockTimeout = 60 * 1000;
 unsigned int sleepDarken = 10 * 1000;
 
 // realPasscode is your passcode, displays 8 characters correctly but technically can be as long as desired
@@ -123,7 +123,7 @@ String realPasscode = "1234";
 String passcode = "";
 int passcodePlace = 0;
 unsigned long startPasscodeLock = 0;
-unsigned int passcodeclockTimeout = 10 * 1000;
+unsigned int passcodeClockTimeout = 10 * 1000;
 
 // Notification LEDs
 int missedCallsLED = 10;
@@ -134,15 +134,13 @@ int powerButton = 13;
 
 // Delay for write on Serial1 baud, bitDepth is CPU/MCU/MPU bits
 double bitDepth = 8;
-double buadRateGPRS = 38400;
+double buadRateGPRS = 19200;
 unsigned int delayForUart = (buadRateGPRS / (bitDepth + 2.0));
 
 // Keep track of in call clockTime
-unsigned int prevCallclockTime = 0;
-unsigned int callclockTime = 0;
+unsigned int prevCallTime = 0;
+unsigned int callTime = 0;
 
-// Seconds of time
-unsigned int = 0;
 
 //==================================================================================================================================================
 
@@ -165,22 +163,19 @@ void setup() {
 
   //==================================================================================================================================================
 
-  // Power on the Sim Module
-  pinMode(26, INPUT);
-  pinMode(3, OUTPUT);
-  boolean powerState = false;
-  powerState = digitalRead(26);
-  if (!powerState) {
-    digitalWrite(3, HIGH);
-    delay(3000);
-    digitalWrite(3, LOW);
-  }
+  //=========================
+  //  Start Serial Monitors
+  //=========================
 
   // Start serial from Arduino to USB
   Serial.begin(19200);
 
   // Start serial from GPRS to Arduino
   Serial1.begin(buadRateGPRS);
+
+  //=========================
+  //    Power on Display
+  //=========================
 
   // Initialize the RA8875 driver
   Serial.println("RA8875 start");
@@ -205,9 +200,49 @@ void setup() {
   tft.scanH_flip(true);
   tft.textRotate(true);
 
+  //=========================
+  //  Starting Screen
+  //=========================
+
   // Set Screen
   atPasscodeScreen = true;
   drawPasscodeScreen();
+
+  //=========================
+  //   Module Power Check
+  //=========================
+
+  // Power on the Sim Module
+  pinMode(26, INPUT);
+  pinMode(3, OUTPUT);
+  boolean powerState = digitalRead(26);
+
+  // if module is powered down
+  if (!powerState) {
+    do {
+      // turn module on
+      digitalWrite(3, HIGH);
+      delay(3000);
+      powerState = digitalRead(26);
+      delay(200);
+    } while (!powerState);
+    digitalWrite(3, LOW);
+
+    // wait for module to start sending data
+    while (!Serial1.available()) {
+    }
+
+    // let module finish data, then print report to serial monitor
+    char initChip[1024];
+    Serial1.readBytes(initChip, 1024);
+    for (int i = 0; i < 1024; i++) {
+      Serial.write(initChip[i]);
+    }
+  }
+
+  //=========================
+  //  Module Function Check
+  //=========================
 
   // Update clockTime from network
   Serial1.write("AT+CLTS=1\r");
@@ -225,14 +260,13 @@ void setup() {
   //Serial1.write("AT+CSCLK=2\r");
   //delay((11 / delayForUart) * 1000);
 
-  // If Sim Module is currently powered on, check clockTime
-  if (powerState) {
-    Serial1.write("AT+CCLK?\r");
-    delay((11 / delayForUart) * 1000);
-  }
+  // Check clockTime
+  Serial1.write("AT+CCLK?\r");
+  delay((9 / delayForUart) * 1000);
 
-  lastInteract = millis();
-  startPasscodeLock = millis();
+  currentTime = millis();
+  lastInteract = currentTime;
+  startPasscodeLock = currentTime;
 
   pinMode(powerButton, INPUT_PULLUP);
   digitalWrite(powerButton, HIGH);
@@ -259,61 +293,61 @@ void loop() {
   //==================================================================================================================================================
 
   //=========================
-  //     Time in Seconds
+  //          Time
   //=========================
-  seconds = seconds;
+  currentTime = (millis() / 1000);
 
 
   //=========================
   //      SERIAL READS
   //=========================
   // When data is coming from GPRS store into bufGPRS
-  while (Serial1.available()) {
+  if (Serial1.available()) {
     bufGPRS += (char)Serial1.read();
   }
+  Serial1.flush();
 
   //When data is coming from USB write to GPRS shield
-  while (Serial.available()) {
+  if (Serial.available()) {
     Serial1.write(Serial.read());
   }
+  Serial.flush();
 
 
   //=========================
   //     GPRS FUNCTIONS
   //=========================
-  if (bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n") {
+  if (bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()).equals("\r\n")) {
     resultStrChange = true;
-    while (bufGPRS.substring(0, 2) == "\r\n")
-      bufGPRS = bufGPRS.substring(2, bufGPRS.length());
-    if (bufGPRS.substring(0, 6) == "+CCLK:") {
-      displayclockTime = true;
-      every60 = seconds;
-    }
-    else if (bufGPRS.substring(0, 5) == "+CBC:")
+    if (bufGPRS.equals("\r\n"))
+      bufGPRS = "";
+    else if (bufGPRS.substring(0, 5).equals("+CCLK"))
+      displayClockTime = true;
+    else if (bufGPRS.substring(0, 4).equals("+CBC"))
       displayBattery = true;
-    else if (bufGPRS.substring(0, 6) == "+CLIP:")
+    else if (bufGPRS.substring(0, 5).equals("+CLIP"))
       resultStr = "Caller ID";
-    else if (bufGPRS == "RING\r\n") {
+    else if (bufGPRS.equals("RING\r\n")) {
       resultStr = "Ringing";
       atAnswerScreen = true;
       atHomeScreen = false;
       atPhoneScreen = false;
       atTextMessageScreen = false;
     }
-    else if (bufGPRS.substring(0, 6) == "+CMTI:")
+    else if (bufGPRS.substring(0, 5).equals("+CMTI"))
       newMessage = true;
-    else if (bufGPRS.substring(0, 6) == "+CMGR:")
+    else if (bufGPRS.substring(0, 5).equals("+CMGR"))
       resultStr = "Text Read";
-    else if (bufGPRS == "OK\r\n")
+    else if (bufGPRS.equals("OK\r\n"))
       resultStr = "OK";
-    else if (bufGPRS == "NO CARRIER\r\n")
+    else if (bufGPRS.equals("NO CARRIER\r\n"))
       resultStr = "No Carrier";
-    else if (bufGPRS == "Call Ready\r\n") {
+    else if (bufGPRS.equals("Call Ready\r\n")) {
       Serial1.write("AT+CCLK?\r");
       delay((11 / delayForUart) * 1000);
       resultStr = "Call Ready";
     }
-    else if (bufGPRS == "NORMAL POWER DOWN\r\n")
+    else if (bufGPRS.equals("NORMAL POWER DOWN\r\n"))
       resultStr = "NORMAL POWER DOWN";
   }
 
@@ -605,23 +639,21 @@ void loop() {
   //==========================================================
   //      clockTime DISPLAY
   //==========================================================
-  if (displayclockTime) {
+  if (displayClockTime) {
     printClockTime();
-    char seconds[2];
-    seconds[0] = bufGPRS.charAt(bufGPRS.indexOf(':', 22) + 1);
-    seconds[1] = bufGPRS.charAt(bufGPRS.indexOf('-') - 1);
-    next60 = (seconds[0] - 48) * 10;
-    next60 += (seconds[1] - 48);
-    next60 = 60 - next60;
+
+    int secondTens = 10 * (bufGPRS.charAt(bufGPRS.lastIndexOf('"') - 5) - 48);
+    int secondOnes = bufGPRS.charAt(bufGPRS.lastIndexOf('"') - 4) - 48;
+    displayTime -= secondTens + secondOnes;
 
     // Update Battery Indicator
     Serial1.write("AT+CBC\r");
-    delay((7 / delayForUart) * 1000);
+    Serial1.flush();
   }
-  else if (seconds >= next60 + every60) {
-    every60 = seconds;
+  else if (currentTime >= displayTime) {
+    displayTime += 60;
     Serial1.write("AT+CCLK?\r");
-    delay((9 / delayForUart) * 1000);
+    Serial1.flush();
   }
 
   //==========================================================
@@ -705,16 +737,16 @@ void loop() {
   //==========================================================
   //  DISPLAY clockTimeOUT SLEEP
   //==========================================================
-  if (!displaySleep && millis() >= (lastInteract + displayclockTimeout)) {
-    startPasscodeLock = millis();
-    lastInteract = millis();
+  if (!displaySleep && currentTime >= (lastInteract + displayClockTimeout)) {
+    startPasscodeLock = currentTime;
+    lastInteract = currentTime;
     tft.displayOn(false);
     tft.PWM1out(0);
     tft.touchEnable(false);
     displaySleep = true;
     delay(20);
   }
-  else if (!displaySleep && millis() >= (lastInteract + (displayclockTimeout - sleepDarken))) {
+  else if (!displaySleep && currentTime >= (lastInteract + (displayClockTimeout - sleepDarken))) {
     tft.PWM1out(65);
     delay(20);
   }
@@ -722,7 +754,7 @@ void loop() {
   //==========================================================
   //  PASSCODE LOCK SCREEN
   //==========================================================
-  if (!atPasscodeScreen && displaySleep && millis() >= (startPasscodeLock + passcodeclockTimeout)) {
+  if (!atPasscodeScreen && displaySleep && currentTime >= (startPasscodeLock + passcodeClockTimeout)) {
     drawPasscodeScreen();
     atHomeScreen = false;
     atPhoneScreen = false;
@@ -735,23 +767,22 @@ void loop() {
   //      IN CALL DURATION
   //==========================================================
   if (inCall) {
-    unsigned int temp = seconds;
-    if (temp >= prevCallclockTime + 1) {
-      prevCallclockTime = temp;
-      char callclockTimeChar[5];
-      callclockTimeChar[2] = 10;
-      callclockTime++;
-      if (callclockTime >= 60) {
-        callclockTimeChar[4] = (callclockTime / 60) / 10;
-        callclockTimeChar[3] = (callclockTime / 60) % 10;
-        callclockTimeChar[1] = (callclockTime % 60) / 10;
-        callclockTimeChar[0] = (callclockTime % 60) % 10;
+    if (currentTime >= prevCallTime + 1) {
+      prevCallTime = currentTime;
+      char callTimeChar[5];
+      callTimeChar[2] = 10;
+      callTime++;
+      if (callTime >= 60) {
+        callTimeChar[4] = (callTime / 60) / 10;
+        callTimeChar[3] = (callTime / 60) % 10;
+        callTimeChar[1] = (callTime % 60) / 10;
+        callTimeChar[0] = (callTime % 60) % 10;
       }
       else {
-        callclockTimeChar[4] = 0;
-        callclockTimeChar[3] = 0;
-        callclockTimeChar[1] = callclockTime / 10;
-        callclockTimeChar[0] = callclockTime % 10;
+        callTimeChar[4] = 0;
+        callTimeChar[3] = 0;
+        callTimeChar[1] = callTime / 10;
+        callTimeChar[0] = callTime % 10;
       }
       tft.graphicsMode();
       tft.fillRect(425, 0, 54, 185, RA8875_BLACK);
@@ -761,7 +792,7 @@ void loop() {
       tft.textSetCursor(425, 15);
       tft.writeCommand(RA8875_MRWC);
       for (int i = 4; i >= 0; i--) {
-        tft.writeData(callclockTimeChar[i] + 48);
+        tft.writeData(callTimeChar[i] + 48);
         delay(1);
       }
     }
@@ -814,7 +845,7 @@ void loop() {
     touchValue_X /= averageValue;
     touchValue_Y /= averageValue;
     printTouchValues();
-    lastInteract = millis();
+    lastInteract = currentTime;
   }
 
   //==========================================================
@@ -1060,8 +1091,7 @@ void loop() {
         atAnswerScreen = false;
         atAnsweredScreen = true;
         countRings = 0;
-        callclockTime = 0;
-        prevCallclockTime = seconds;
+        callTime = 0;
       }
 
       //=========================
@@ -1400,7 +1430,7 @@ void loop() {
           Serial1.write(callCharBuf);
           delay((16 / delayForUart) * 1000);
           inCall = true;
-          callclockTime = 0;
+          callTime = 0;
           tft.textMode();
           tft.textColor(RA8875_WHITE, RA8875_BLACK);
           tft.textEnlarge(2);
@@ -1408,7 +1438,7 @@ void loop() {
           tft.textSetCursor(40, 20);
           tft.textWrite("Calling...");
           delay(2000);
-          lastInteract = millis();
+          lastInteract = currentTime;
           tft.graphicsMode();
           clearScreen();
           drawPhoneScreen();
@@ -1447,7 +1477,7 @@ void loop() {
         tft.textSetCursor(100, 15);
         tft.textWrite("Call Ended");
         delay(2000);
-        lastInteract = millis();
+        lastInteract = currentTime;
         place = 3;
         resultStr = "";
         if (atPasscodeScreen) {
@@ -1776,7 +1806,7 @@ void loop() {
         tft.textSetCursor(70, 15);
         tft.textWrite("Call Ended");
         delay(2000);
-        lastInteract = millis();
+        lastInteract = currentTime;
         place = 3;
         resultStr = "";
         if (atPasscodeScreen) {
@@ -2042,7 +2072,7 @@ void loop() {
     tft.textSetCursor(35, 20);
     tft.textWrite("17 characters or less");
     delay(3000);
-    lastInteract = millis();
+    lastInteract = currentTime;
     drawPhoneScreen();
   }
 
@@ -2050,12 +2080,12 @@ void loop() {
   //  PRINT SERIAL DATA AT END OF EACH STATEMENT OR REQUEST
   //================================================================================================
   // Print data coming from GPRS then clear
-  if (bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()) == "\r\n") {
-    if (resultStr == "Text Read") {
+  if (bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()).equals("\r\n")) {
+    if (resultStr.equals("Text Read")) {
       textBuf += bufGPRS;
       textReadStarted = true;
     }
-    else if (resultStr == "OK" && textReadStarted) {
+    else if (resultStr.equals("OK") && textReadStarted) {
       textReady = true;
       textReadStarted = false;
     }
@@ -2484,8 +2514,8 @@ void switchPasscodePlace() {
   }
 }
 void printClockTime() {
-  if (displayclockTime) {
-    displayclockTime = false;
+  if (displayClockTime) {
+    displayClockTime = false;
     // Determine the start and finish of body for clockTime format number
     int clockTime_Start = bufGPRS.indexOf('"');
 
@@ -2523,7 +2553,7 @@ void printClockTime() {
         clockTime[0] = '0';
         clockTime[1] += 8;
       }
-      else {
+      else if (clockTime[1] != '2') {
         clockTime[0] -= 1;
         clockTime[1] -= 2;
       }
@@ -2661,10 +2691,6 @@ void printClockTime() {
     tft.writeData(clockTime[i]);
     delay(1);
   }
-
-  // Print battery indicator everytime time is displayed
-  batteryDisplay();
-
 }
 void batteryDisplay() {
   tft.textMode();
