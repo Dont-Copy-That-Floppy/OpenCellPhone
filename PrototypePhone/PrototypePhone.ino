@@ -1,7 +1,6 @@
 /******************************************************************************************************
 
-                Coded and written by Pusalieth aka Jake Pring
-                          Licensed under the GPLv2
+                          Licensed under the GPLv3
 
     This code running on an Arduino combined with the GPRS shield from Seeedstudio, and the
   4.3" tft touch screen from Adafrit, using the RA8875 driver from Adafruit, it will produce
@@ -52,89 +51,115 @@
 // mew object tft to use RA8875
 Adafruit_RA8875 tft = Adafruit_RA8875(RA8875_CS, RA8875_RESET);
 
-// Initialize touch screen place values
+// TFT Screen Magic Numbers
+// Numpad
+int topRow_xMin = 689;
+int topRow_xMax = 778;
+int secondRow_xMin = 529;
+int secondRow_xMax = 627;
+int thirdRow_xMin = 347;
+int thirdRow_xMax = 442;
+int bottomRow_xMin = 194;
+int bottomRow_xMax = 285;
+
+int leftColumn_yMin = 190;
+int leftColumn_yMax = 305;
+int middleColumn_yMin = 443;
+int middleColumn_yMax = 577;
+int rightColumn_yMin = 690;
+int rightColumn_yMax = 872;
+
+// test values
+const int text_size = 2;
+const int delay_input = 2;
+
+// Initialize touch screen callCharBuf_Index values
 uint16_t touchValue_X = 0, touchValue_Y = 0;
 
 // Touch Event
-boolean touched = false;
+bool touched = false;
 
 // Keep track of clockTime since Last Touched event
 unsigned long lastInteract = 0;
 
 // Call Buffer
 char callCharBuf[20] = {'A', 'T', 'D'};
-
-// Place value of number dialed sequence
-int place = 3;
+int callCharBuf_Index = 3;
 
 // Text Messaging array, store from bufGPRS, start and finish of text message read from GPRS
 char sendCharText[11] = {'A', 'T', '+', 'C', 'M', 'G', 'R', '=', '0', '1', '\r'};
-String textBuf = "";
-boolean viewMessage = false;
-boolean textReadStarted = false;
-boolean textReady = false;
-boolean newMessage;
+char textBuf[256] = "";
+int textBuf_Index = 0;
+bool viewMessage = false;
+bool textReadStarted = false;
+bool textReady = false;
+bool newMessage;
 
 // resultStr defines the functions of the phone
-String resultStr = "";
-boolean resultStrChange = false;
+char resultStr[256] = "";
+int resultStr_Index = 0;
+bool resultStrChange = false;
 
 // Store incoming data from GPRS shield
-String bufGPRS = "";
+chat bufGPRS[256] = "";
+int bufGPRS_Index = 0;
 
 // Keep track of whether in call or not
-boolean inCall = false;
+bool inCall = false;
 
 // Keep track of missed Calls and new Messages
 int countRings = 0;
-char missedCalls = '0';
-char old_missedCalls = '0';
-char newMessages = '0';
-char old_newMessages = '0';
+char missedCalls = 0;
+char old_missedCalls = 0;
+char newMessages = 0;
+char old_newMessages = 0;
 
 // Battery Condition updated with clockTime mintues
-boolean displayBattery = false;
-boolean charging = false;
+bool displayBattery = false;
+bool charging = false;
 char battLevel[2];
 char battVoltage[4];
 
 // Keep track of clockTime elapsed since last query for clockTime (defined per 60 seconds)
 unsigned long currentTime = 0;
 unsigned long displayTime = 60;
-boolean displayClockTime = false;
+bool displayClockTime = false;
 char clockTime[20];
 
 // Define where on the phone the User is and what part of the phone functions to jump to
-boolean atHomeScreen = false;
-boolean atPhoneScreen = false;
-boolean atTextMessageScreen = false;
-boolean atAnswerScreen = false;
-boolean atAnsweredScreen = false;
-boolean atPasscodeScreen = true;
-boolean atSendTextScreen = false;
+bool atHomeScreen = false;
+bool atPhoneScreen = false;
+bool atTextMessageScreen = false;
+bool atAnswerScreen = false;
+bool atAnsweredScreen = false;
+bool atPasscodeScreen = true;
+bool atSendTextScreen = false;
 
 // Display State and clockTimes
-boolean displaySleep = false;
+bool displaySleep = false;
 unsigned int displayClockTimeout = 60 * 1000;
 unsigned int sleepDarken = 10 * 1000;
 
 // realPasscode is your passcode, displays 8 characters correctly but technically can be as long as desired
-String realPasscode = "1234";
-String passcode = "";
-int passcodePlace = 0;
+const int max_password_length = 16;
+char realPasscode[max_password_length] = "1234";
+char realPasscode_Index = 0;
+char passcode[max_password_length] = "";
+int passcode_Index = 0;
 unsigned long startPasscodeLock = 0;
 unsigned int passcodeClockTimeout = 10 * 1000;
+const int x_Position = 60;
 
 // Notification LEDs
-int missedCallsLED = 10;
-int messageLED = 11;
+const int missedCallsLED = 10;
+const int messageLED = 11;
 
 // Power Button
-int powerButton = 13;
+const int powerButton = 13;
 
 // Delay for write on Serial1 baud, bitDepth is CPU/MCU/MPU bits
-double bitDepth = 8;
-double buadRateGPRS = 19200;
+const double bitDepth = 8;
+const double buadRateGPRS = 19200;
 unsigned int delayForUart = (buadRateGPRS / (bitDepth + 2.0));
 
 // Keep track of in call clockTime
@@ -205,7 +230,6 @@ void setup() {
   //=========================
 
   // Set Screen
-  atPasscodeScreen = true;
   drawPasscodeScreen();
 
   //=========================
@@ -215,7 +239,7 @@ void setup() {
   // Power on the Sim Module
   pinMode(26, INPUT);
   pinMode(3, OUTPUT);
-  boolean powerState = digitalRead(26);
+  bool powerState = digitalRead(26);
 
   // if module is powered down
   if (!powerState) {
@@ -303,8 +327,9 @@ void loop() {
   //=========================
   // When data is coming from GPRS store into bufGPRS
   if (Serial1.available()) {
-    bufGPRS += (char)Serial1.read();
+    bufGPRS[bufGPRS_Index++] = (char)Serial1.read();
   }
+  bufGPRS[bufGPRS_Index] = '\0'
   Serial1.flush();
 
   //When data is coming from USB write to GPRS shield
@@ -317,39 +342,49 @@ void loop() {
   //=========================
   //     GPRS FUNCTIONS
   //=========================
-  if (bufGPRS.substring(bufGPRS.length() - 2, bufGPRS.length()).equals("\r\n")) {
+  if (strlen(bufGPRS) >= 2 && strcmp(&bufGPRS[strlen(bufGPRS) - 2], "\r\n") == 0) {
     resultStrChange = true;
-    if (bufGPRS.equals("\r\n"))
-      bufGPRS = "";
-    else if (bufGPRS.substring(0, 5).equals("+CCLK"))
+  
+    if (strcmp(bufGPRS, "\r\n") == 0) {
+      bufGPRS[0] = '\0'; // Clear buffer
+    }
+    else if (strncmp(bufGPRS, "+CCLK", 5) == 0) {
       displayClockTime = true;
-    else if (bufGPRS.substring(0, 4).equals("+CBC"))
+    }
+    else if (strncmp(bufGPRS, "+CBC", 4) == 0) {
       displayBattery = true;
-    else if (bufGPRS.substring(0, 5).equals("+CLIP"))
-      resultStr = "Caller ID";
-    else if (bufGPRS.equals("RING\r\n")) {
-      resultStr = "Ringing";
+    }
+    else if (strncmp(bufGPRS, "+CLIP", 5) == 0) {
+      strcpy(resultStr, "Caller ID");
+    }
+    else if (strcmp(bufGPRS, "RING\r\n") == 0) {
+      strcpy(resultStr, "Ringing");
       atAnswerScreen = true;
       atHomeScreen = false;
       atPhoneScreen = false;
       atTextMessageScreen = false;
     }
-    else if (bufGPRS.substring(0, 5).equals("+CMTI"))
+    else if (strncmp(bufGPRS, "+CMTI", 5) == 0) {
       newMessage = true;
-    else if (bufGPRS.substring(0, 5).equals("+CMGR"))
-      resultStr = "Text Read";
-    else if (bufGPRS.equals("OK\r\n"))
-      resultStr = "OK";
-    else if (bufGPRS.equals("NO CARRIER\r\n"))
-      resultStr = "No Carrier";
-    else if (bufGPRS.equals("Call Ready\r\n")) {
+    }
+    else if (strncmp(bufGPRS, "+CMGR", 5) == 0) {
+      strcpy(resultStr, "Text Read");
+    }
+    else if (strcmp(bufGPRS, "OK\r\n") == 0) {
+      strcpy(resultStr, "OK");
+    }
+    else if (strcmp(bufGPRS, "NO CARRIER\r\n") == 0) {
+      strcpy(resultStr, "No Carrier");
+    }
+    else if (strcmp(bufGPRS, "Call Ready\r\n") == 0) {
       Serial1.write("AT+CCLK?\r");
       delay((11 / delayForUart) * 1000);
-      resultStr = "Call Ready";
+      strcpy(resultStr, "Call Ready");
     }
-    else if (bufGPRS.equals("NORMAL POWER DOWN\r\n"))
-      resultStr = "NORMAL POWER DOWN";
-  }
+    else if (strcmp(bufGPRS, "NORMAL POWER DOWN\r\n") == 0) {
+      strcpy(resultStr, "NORMAL POWER DOWN");
+    }
+  }  
 
 
   //===========================================================================================================================
@@ -367,15 +402,17 @@ void loop() {
     //==========================================================
     //   MISSED CALLS PROMPT
     //==========================================================
-    if (missedCalls > '0') {
+    if (missedCalls > 0) {
       tft.textMode();
       tft.textRotate(true);
       tft.textColor(RA8875_WHITE, RA8875_BLACK);
       tft.textEnlarge(1);
-      delay(2);
+      delay(delay_input);
       tft.textSetCursor(270, 15);
       tft.textWrite("Missed Calls ");
-      tft.writeData(missedCalls);
+      char missedBuf[4]; // enough for "999\0"
+      itoa(missedCalls, missedBuf, 10); // base 10
+      tft.writeData(missedBuf);
     }
 
     //==========================================================
@@ -392,7 +429,7 @@ void loop() {
       tft.textRotate(true);
       tft.textColor(RA8875_WHITE, RA8875_BLACK);
       tft.textEnlarge(1);
-      delay(2);
+      delay(delay_input);
       tft.textSetCursor(160, 20);
       tft.textWrite("New Message ");
       tft.writeCommand(RA8875_MRWC);
@@ -406,7 +443,7 @@ void loop() {
       tft.textRotate(true);
       tft.textColor(RA8875_WHITE, RA8875_BLACK);
       tft.textEnlarge(1);
-      delay(2);
+      delay(delay_input);
       tft.textSetCursor(210, 40);
       tft.textWrite("View Message");
       viewMessage = true;
@@ -417,20 +454,14 @@ void loop() {
   //   TEXT MESSAGE SCREEN
   //================================================================================================
   else if (atTextMessageScreen) {
-
-    //==========================================================
-    //      VIEW MESSAGES
-    //==========================================================
     if (textReady) {
-      char textCharRead[textBuf.length()];
-      textBuf.toCharArray(textCharRead, textBuf.length());
-
-      // Prepare to display message
+      // No need to copy into textCharRead — textBuf IS the char buffer
+  
       tft.textMode();
       tft.textColor(RA8875_WHITE, RA8875_BLACK);
       tft.textEnlarge(1);
-      delay(2);
-
+      delay(delay_input);
+  
       // Display Index Number
       tft.textSetCursor(45, 100);
       tft.writeCommand(RA8875_MRWC);
@@ -438,47 +469,50 @@ void loop() {
         tft.writeData(sendCharText[i]);
         delay(1);
       }
-
-      // Define the length of Caller Number to display on-screen
-      int receivingNumStart = textBuf.indexOf(',');
-      if (receivingNumStart + 2 == '+') {
+  
+      // Find start/end of caller number
+      int receivingNumStart = strchr(textBuf, ',') - textBuf;
+      if (textBuf[receivingNumStart + 2] == '+') {
         receivingNumStart += 3;
       } else {
         receivingNumStart += 2;
       }
-      int receivingNumEnd = (textBuf.indexOf(',', receivingNumStart + 1));
-      receivingNumEnd -= 1;
-
-      // Display Caller Number for New Message
+  
+      int receivingNumEnd = strchr(&textBuf[receivingNumStart], ',') - textBuf - 1;
+  
+      // Display caller number
       tft.textEnlarge(0);
-      delay(2);
+      delay(delay_input);
       tft.textSetCursor(130, 60);
       tft.writeCommand(RA8875_MRWC);
       for (int i = receivingNumStart; i < receivingNumEnd; i++) {
-        tft.writeData(textCharRead[i]);
+        tft.writeData(textBuf[i]);
         delay(1);
       }
-
-      // Define the length of message to display on-screen
-      int messageStart = textBuf.indexOf('\r');
-      int messageEnd = (textBuf.indexOf('\r', messageStart + 1));
-
-      // Display Message Body
+  
+      // Find start and end of message
+      char *firstCR = strchr(textBuf, '\r');
+      char *secondCR = strchr(firstCR + 1, '\r');
+  
+      int messageStart = firstCR - textBuf + 2;
+      int messageEnd = secondCR - textBuf;
+  
+      // Display message body
       tft.textSetCursor(175, 0);
       tft.textEnlarge(0);
-      delay(2);
+      delay(delay_input);
       tft.writeCommand(RA8875_MRWC);
-      for (int i = messageStart + 2; i < messageEnd; i++) {
-        tft.writeData(textCharRead[i]);
+      for (int i = messageStart; i < messageEnd; i++) {
+        tft.writeData(textBuf[i]);
         delay(1);
       }
+  
       textReady = false;
-      textBuf = "";
-
-      // Needs more intelligence, only clear if all messages are read
+      textBuf[0] = '\0'; // Clear buffer
+  
       clearNotifications();
     }
-  }
+  }  
 
   //================================================================================================
   //   ANSWER SCREEN
@@ -505,7 +539,7 @@ void loop() {
       tft.textMode();
       tft.textColor(RA8875_WHITE, RA8875_BLACK);
       tft.textEnlarge(1);
-      delay(2);
+      delay(delay_input);
       tft.textSetCursor(75, 20);
       tft.textWrite("Incoming Call");
     }
@@ -515,24 +549,25 @@ void loop() {
     //==========================================================
     else if (resultStr == "Caller ID") {
       resultStrChange = false;
-      // Determine the start and finish of body for Caller id number
-      int callerID_Start = bufGPRS.indexOf('"');
-      int callerID_End = bufGPRS.indexOf('"', callerID_Start + 1);
 
-      // store data and input to array
-      char callerID[bufGPRS.length()];
-      bufGPRS.toCharArray(callerID, bufGPRS.length());
-
-      // Display number on screen
-      tft.textMode();
-      tft.textColor(RA8875_WHITE, RA8875_BLACK);
-      tft.textEnlarge(1);
-      delay(2);
-      tft.textSetCursor(125, 20);
-      tft.writeCommand(RA8875_MRWC);
-      for (int i = callerID_Start + 1; i < callerID_End; i++) {
-        tft.writeData(callerID[i]);
-        delay(1);
+      // Find the first and second double quotes
+      char *startPtr = strchr(bufGPRS, '"');
+      char *endPtr = startPtr ? strchr(startPtr + 1, '"') : NULL;
+    
+      if (startPtr && endPtr && endPtr > startPtr) {
+        // Display caller ID between quotes
+        tft.textMode();
+        tft.textColor(RA8875_WHITE, RA8875_BLACK);
+        tft.textEnlarge(1);
+        delay(delay_input);
+        tft.textSetCursor(125, 20);
+        tft.writeCommand(RA8875_MRWC);
+    
+        // Print each character between the quotes
+        for (char *p = startPtr + 1; p < endPtr; p++) {
+          tft.writeData(*p);
+          delay(1);
+        }
       }
     }
   }
@@ -546,25 +581,15 @@ void loop() {
     clearScreen();
     tft.textMode();
     tft.textColor(RA8875_WHITE, RA8875_BLACK);
-    tft.textEnlarge(2);
-    delay(2);
+    tft.textEnlarge(text_size);
+    delay(delay_input);
     tft.textSetCursor(100, 15);
     tft.textWrite("Call Ended");
     delay(2000);
     if (atPasscodeScreen) {
-      atHomeScreen = false;
-      atPhoneScreen = false;
-      atTextMessageScreen = false;
-      atAnswerScreen = false;
-      atAnsweredScreen = false;
       drawPasscodeScreen();
     } else {
       drawHomeScreen();
-      atHomeScreen = true;
-      atPhoneScreen = false;
-      atTextMessageScreen = false;
-      atAnsweredScreen = false;
-      atAnswerScreen = false;
     }
   }
 
@@ -576,11 +601,6 @@ void loop() {
     lastInteract = millis();
     startPasscodeLock = millis();
     drawPasscodeScreen();
-    atHomeScreen = false;
-    atPhoneScreen = false;
-    atTextMessageScreen = false;
-    atAnswerScreen = false;
-    atPasscodeScreen = true;
     Serial1.write("AT+CCLK?\r");
     delay((9 / delayForUart) * 1000);
   }
@@ -594,8 +614,8 @@ void loop() {
         // Display to User GPRS shield is off
         tft.textMode();
         tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
+        tft.textEnlarge(text_size);
+        delay(delay_input);
         tft.textSetCursor(250, 50);
         tft.textWrite("SIM900m");
         tft.textSetCursor(300, 50);
@@ -626,13 +646,20 @@ void loop() {
   //==========================================================
   if (displayBattery) {
     displayBattery = false;
-    charging = (bufGPRS.charAt(bufGPRS.indexOf(',') - 1)) - 48;
-    battLevel[0] = bufGPRS.charAt(bufGPRS.indexOf(',') + 1);
-    battLevel[1] = bufGPRS.charAt(bufGPRS.indexOf(',') + 2);
-    battVoltage[0] = bufGPRS.charAt(bufGPRS.indexOf(',') + 4);
-    battVoltage[1] = bufGPRS.charAt(bufGPRS.indexOf(',') + 5);
-    battVoltage[2] = bufGPRS.charAt(bufGPRS.indexOf(',') + 6);
-    battVoltage[3] = bufGPRS.charAt(bufGPRS.indexOf(',') + 7);
+
+    char *firstComma = strchr(bufGPRS, ',');
+    if (firstComma && strlen(firstComma) >= 8) {
+      charging = *(firstComma - 1) - '0';  // char to int
+
+      battLevel[0] = *(firstComma + 1);
+      battLevel[1] = *(firstComma + 2);
+
+      battVoltage[0] = *(firstComma + 4);
+      battVoltage[1] = *(firstComma + 5);
+      battVoltage[2] = *(firstComma + 6);
+      battVoltage[3] = *(firstComma + 7);
+    }
+
     batteryDisplay();
   }
 
@@ -641,10 +668,15 @@ void loop() {
   //==========================================================
   if (displayClockTime) {
     printClockTime();
+    displayClockTime = false; // Ensure flag is reset
 
-    int secondTens = 10 * (bufGPRS.charAt(bufGPRS.lastIndexOf('"') - 5) - 48);
-    int secondOnes = bufGPRS.charAt(bufGPRS.lastIndexOf('"') - 4) - 48;
-    displayTime -= secondTens + secondOnes;
+    // Find the last quote (") to locate seconds
+    char *lastQuote = strrchr(bufGPRS, '"');
+    if (lastQuote && (lastQuote - bufGPRS) >= 5) {
+      int secondTens = (lastQuote[-5] - '0') * 10;
+      int secondOnes = (lastQuote[-4] - '0');
+      displayTime -= (secondTens + secondOnes);
+    }
 
     // Update Battery Indicator
     Serial1.write("AT+CBC\r");
@@ -656,6 +688,7 @@ void loop() {
     Serial1.flush();
   }
 
+
   //==========================================================
   //   MISSED/NEW MESSAGES COUNT
   //==========================================================
@@ -664,12 +697,16 @@ void loop() {
     //=========================
     //    NEW MESSAGE INDEX
     //=========================
-    if (bufGPRS.indexOf(',') + 2 == '\r') {
-      sendCharText[9] = bufGPRS.charAt(bufGPRS.indexOf(',') + 1);
-    } else {
-      sendCharText[8] = bufGPRS.charAt(bufGPRS.indexOf(',') + 1);
-      sendCharText[9] = bufGPRS.charAt(bufGPRS.indexOf(',') + 2);
+    char *comma = strchr(bufGPRS, ',');
+    if (comma) {
+      if (*(comma + 2) == '\r') {
+        sendCharText[9] = *(comma + 1);
+      } else {
+        sendCharText[8] = *(comma + 1);
+        sendCharText[9] = *(comma + 2);
+      }
     }
+
     newMessage = false;
   }
 
@@ -684,23 +721,23 @@ void loop() {
   //==========================================================
   //    NOTIFICATION LEDS
   //==========================================================
-  if (missedCalls >= '1' && missedCalls != old_missedCalls) {
+  if (missedCalls >= 1 && missedCalls != old_missedCalls) {
     old_missedCalls = missedCalls;
     analogWrite(missedCallsLED, 255);
     tft.textMode();
     tft.textColor(RA8875_RED, RA8875_BLACK);
     tft.textEnlarge(1);
-    delay(2);
+    delay(delay_input);
     tft.textSetCursor(0, 0);
     tft.textWrite("!");
   }
 
-  if (newMessages >= '1' && newMessages != old_newMessages) {
+  if (newMessages >= 1 && newMessages != old_newMessages) {
     analogWrite(messageLED, 255);
     tft.textMode();
     tft.textColor(RA8875_YELLOW, RA8875_BLACK);
     tft.textEnlarge(1);
-    delay(2);
+    delay(delay_input);
     tft.textSetCursor(0, 20);
     tft.textWrite("!");
   }
@@ -725,12 +762,6 @@ void loop() {
       tft.displayOn(false);
       tft.touchEnable(false);
       delay(20);
-      displaySleep = true;
-      atHomeScreen = false;
-      atPhoneScreen = false;
-      atTextMessageScreen = false;
-      atAnswerScreen = false;
-      atPasscodeScreen = true;
     }
   }
 
@@ -756,11 +787,6 @@ void loop() {
   //==========================================================
   if (!atPasscodeScreen && displaySleep && currentTime >= (startPasscodeLock + passcodeClockTimeout)) {
     drawPasscodeScreen();
-    atHomeScreen = false;
-    atPhoneScreen = false;
-    atTextMessageScreen = false;
-    atAnswerScreen = false;
-    atPasscodeScreen = true;
   }
 
   //==========================================================
@@ -769,32 +795,26 @@ void loop() {
   if (inCall) {
     if (currentTime >= prevCallTime + 1) {
       prevCallTime = currentTime;
-      char callTimeChar[5];
-      callTimeChar[2] = 10;
-      callTime++;
-      if (callTime >= 60) {
-        callTimeChar[4] = (callTime / 60) / 10;
-        callTimeChar[3] = (callTime / 60) % 10;
-        callTimeChar[1] = (callTime % 60) / 10;
-        callTimeChar[0] = (callTime % 60) % 10;
-      }
-      else {
-        callTimeChar[4] = 0;
-        callTimeChar[3] = 0;
-        callTimeChar[1] = callTime / 10;
-        callTimeChar[0] = callTime % 10;
-      }
+      callTime++; // increment elapsed seconds
+
+      int minutes = callTime / 60;
+      int seconds = callTime % 60;
+
+      char timeDisplay[5];  // "mm:ss"
+      timeDisplay[0] = (minutes / 10) + '0';
+      timeDisplay[1] = (minutes % 10) + '0';
+      timeDisplay[2] = ':'; // separator
+      timeDisplay[3] = (seconds / 10) + '0';
+      timeDisplay[4] = (seconds % 10) + '0';
+
       tft.graphicsMode();
       tft.fillRect(425, 0, 54, 185, RA8875_BLACK);
       tft.textMode();
-      tft.textEnlarge(2);
+      tft.textEnlarge(text_size);
       tft.textColor(RA8875_WHITE, RA8875_BLACK);
       tft.textSetCursor(425, 15);
       tft.writeCommand(RA8875_MRWC);
-      for (int i = 4; i >= 0; i--) {
-        tft.writeData(callTimeChar[i] + 48);
-        delay(1);
-      }
+      tft.textWrite(timeDisplay); // prints "MM:SS"
     }
   }
   //===========================================================================================================================
@@ -865,14 +885,10 @@ void loop() {
         if (touchValue_X > 128 && touchValue_X < 300 && touchValue_Y > 204 && touchValue_Y < 440) {
           touchValue_X = 0;
           touchValue_Y = 0;
-          missedCalls = '0';
-          newMessages = '0';
+          missedCalls = 0;
+          newMessages = 0;
           resultStr = "";
           drawPhoneScreen();
-          atPhoneScreen = true;
-          atHomeScreen = false;
-          atTextMessageScreen = false;
-          atAnswerScreen = false;
         }
 
         //=========================
@@ -881,16 +897,11 @@ void loop() {
         else if (touchValue_X > 128 && touchValue_X < 300 && touchValue_Y > 580 && touchValue_Y < 815) {
           touchValue_X = 0;
           touchValue_Y = 0;
-          missedCalls = '0';
-          newMessages = '0';
+          missedCalls = 0;
+          newMessages = 0;
           Serial1.write(sendCharText);
           delay((11 / delayForUart) * 1000);
           drawTextMessageScreen();
-          atTextMessageScreen = true;
-          atHomeScreen = false;
-          atPhoneScreen = false;
-          atAnswerScreen = false;
-          viewMessage = false;
         }
 
         //=========================
@@ -899,16 +910,11 @@ void loop() {
         else if (viewMessage && touchValue_X > 490 && touchValue_X < 576 && touchValue_Y > 163 && touchValue_Y < 756) {
           touchValue_X = 0;
           touchValue_Y = 0;
-          missedCalls = '0';
-          newMessages = '0';
+          missedCalls = 0;
+          newMessages = 0;
           Serial1.write(sendCharText);
           delay((11 / delayForUart) * 1000);
           drawTextMessageScreen();
-          atTextMessageScreen = true;
-          atHomeScreen = false;
-          atPhoneScreen = false;
-          atAnswerScreen = false;
-          viewMessage = false;
         }
       }
 
@@ -923,13 +929,8 @@ void loop() {
         if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 130 && touchValue_Y < 353) {
           touchValue_X = 0;
           touchValue_Y = 0;
-          delay(2);
+          delay(delay_input);
           drawMessagePad();
-          atSendTextScreen = true;
-          atHomeScreen = false;
-          atPhoneScreen = false;
-          atTextMessageScreen = false;
-          atAnswerScreen = false;
           printClockTime();
         }
 
@@ -940,10 +941,6 @@ void loop() {
           touchValue_X = 0;
           touchValue_Y = 0;
           drawHomeScreen();
-          atHomeScreen = true;
-          atPhoneScreen = false;
-          atTextMessageScreen = false;
-          atAnswerScreen = false;
         }
 
         //=========================
@@ -960,7 +957,7 @@ void loop() {
           tft.textMode();
           tft.textColor(RA8875_WHITE, RA8875_BLACK);
           tft.textEnlarge(1);
-          delay(2);
+          delay(delay_input);
           tft.textSetCursor(150, 20);
           tft.textWrite("Message Deleted");
           delay(2000);
@@ -1046,16 +1043,11 @@ void loop() {
           touchValue_Y = 0;
           tft.scanV_flip(true);
           tft.textRotate(false);
-          delay(2);
+          delay(delay_input);
           Serial1.write(sendCharText);
           delay((11 / delayForUart) * 1000);
           clearFullScreen();
           drawTextMessageScreen();
-          atTextMessageScreen = true;
-          atSendTextScreen = false;
-          atHomeScreen = false;
-          atAnswerScreen = false;
-          atPhoneScreen = false;
           printClockTime();
         }
       }
@@ -1078,18 +1070,13 @@ void loop() {
         tft.fillRect(75, 20, 150, 250, RA8875_BLACK);
         tft.textMode();
         tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
+        tft.textEnlarge(text_size);
+        delay(delay_input);
         tft.textSetCursor(100, 30);
         tft.textWrite("Answered");
         delay(1000);
         resultStr = "";
         drawAnsweredScreen();
-        atHomeScreen = false;
-        atPhoneScreen = false;
-        atTextMessageScreen = false;
-        atAnswerScreen = false;
-        atAnsweredScreen = true;
         countRings = 0;
         callTime = 0;
       }
@@ -1106,335 +1093,63 @@ void loop() {
         clearScreen();
         tft.textMode();
         tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
+        tft.textEnlarge(text_size);
+        delay(delay_input);
         tft.textSetCursor(75, 20);
         tft.textWrite("Ignored");
         delay(1000);
         resultStr = "";
         drawHomeScreen();
-        atHomeScreen = true;
-        atPhoneScreen = false;
-        atTextMessageScreen = false;
-        atAnswerScreen = false;
-        atAnsweredScreen = false;
         countRings = 0;
       }
     }
 
     //================================================================================================
-    //  PHONE SCREEN TOUCH
+    //  PHONE SCREEN TOUCH   //   ANSWERED SCREEN TOUCH
     //================================================================================================
-    else if (atPhoneScreen) {
-      int topRow_xMin = 689;
-      int topRow_xMax = 778;
-      int secondRow_xMin = 529;
-      int secondRow_xMax = 627;
-      int thirdRow_xMin = 347;
-      int thirdRow_xMax = 442;
-      int bottomRow_xMin = 194;
-      int bottomRow_xMax = 285;
-
-      int leftColumn_yMin = 190;
-      int leftColumn_yMax = 305;
-      int middleColumn_yMin = 443;
-      int middleColumn_yMax = 577;
-      int rightColumn_yMin = 690;
-      int rightColumn_yMax = 872;
-
+    else if (atPhoneScreen || atAnsweredScreen) {
+      char input_result = getPressedKey(touchValue_X, touchValue_Y);
       //=========================
       //          #1
       //=========================
-      if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+      if (input_result != '\0') {
         touchValue_X = 0;
         touchValue_Y = 0;
-        callCharBuf[place] = '1';
-        place++;
+        callCharBuf[callCharBuf_Index++] = input_result;
         tft.textMode();
         tft.textRotate(true);
         tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("1");
+        tft.textEnlarge(text_size);
+        delay(delay_input);
+
+        switchcallCharBuf_Index();
+        tft.textWrite(input_result);
 
         // In call DTMF Tone
         if (inCall) {
-          Serial1.write("AT+VTS=1\r");
+          Serial1.write("AT+VTS=" + input_result + "\r");
           delay((9 / delayForUart) * 1000);
         }
       }
 
-      //=========================
-      //          #2
-      //=========================
-      else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '2';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("2");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=2\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #3
-      //=========================
-      else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '3';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("3");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=3\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #4
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '4';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("4");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=4\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #5
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '5';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("5");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=5\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #6
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '6';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("6");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=6\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #7
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '7';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("7");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=7\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #8
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '8';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("8");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=8\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #9
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '9';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("9");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=9\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //           *
-      //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '*';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("*");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=*\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #0
-      //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '0';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("0");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=0\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //           #
-      //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '#';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("#");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=#\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      if (!atPasscodeScreen) {
+      if (!atPasscodeScreen && atPhoneScreen) {
         //=========================
         //          CALL
         //=========================
         if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 130 && touchValue_Y < 353) {
           touchValue_X = 0;
           touchValue_Y = 0;
-          callCharBuf[place] = ';';
-          callCharBuf[place + 1] = '\r';
+          // might need termination
+          callCharBuf[callCharBuf_Index++] = ';';
+          callCharBuf[callCharBuf_Index] = '\r';
           Serial1.write(callCharBuf);
           delay((16 / delayForUart) * 1000);
           inCall = true;
           callTime = 0;
           tft.textMode();
           tft.textColor(RA8875_WHITE, RA8875_BLACK);
-          tft.textEnlarge(2);
-          delay(2);
+          tft.textEnlarge(text_size);
+          delay(delay_input);
           tft.textSetCursor(40, 20);
           tft.textWrite("Calling...");
           delay(2000);
@@ -1442,7 +1157,7 @@ void loop() {
           tft.graphicsMode();
           clearScreen();
           drawPhoneScreen();
-          place = 3;
+          callCharBuf_Index = 3;
         }
 
         //=========================
@@ -1452,11 +1167,7 @@ void loop() {
           touchValue_X = 0;
           touchValue_Y = 0;
           drawHomeScreen();
-          atHomeScreen = true;
-          atPhoneScreen = false;
-          atTextMessageScreen = false;
-          atAnswerScreen = false;
-          place = 3;
+          callCharBuf_Index = 3;
         }
       }
 
@@ -1472,351 +1183,19 @@ void loop() {
         clearScreen();
         tft.textMode();
         tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
+        tft.textEnlarge(text_size);
+        delay(delay_input);
         tft.textSetCursor(100, 15);
         tft.textWrite("Call Ended");
         delay(2000);
         lastInteract = currentTime;
-        place = 3;
+        callCharBuf_Index = 3;
         resultStr = "";
         if (atPasscodeScreen) {
-          atPhoneScreen = false;
           drawPasscodeScreen();
         }
         else {
-          atAnsweredScreen = false;
           drawHomeScreen();
-          atHomeScreen = true;
-        }
-      }
-    }
-
-
-    //================================================================================================
-    //  ANSWERED SCREEN TOUCH
-    //================================================================================================
-    else if (atAnsweredScreen) {
-      int topRow_xMin = 689;
-      int topRow_xMax = 778;
-      int secondRow_xMin = 529;
-      int secondRow_xMax = 627;
-      int thirdRow_xMin = 347;
-      int thirdRow_xMax = 442;
-      int bottomRow_xMin = 194;
-      int bottomRow_xMax = 285;
-
-      int leftColumn_yMin = 190;
-      int leftColumn_yMax = 305;
-      int middleColumn_yMin = 443;
-      int middleColumn_yMax = 577;
-      int rightColumn_yMin = 690;
-      int rightColumn_yMax = 872;
-
-      //=========================
-      //          #1
-      //=========================
-      if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '1';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("1");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=1\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #2
-      //=========================
-      else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '2';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("2");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=2\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #3
-      //=========================
-      else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '3';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("3");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=3\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #4
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '4';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("4");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=4\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #5
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '5';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("5");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=5\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #6
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '6';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("6");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=6\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #7
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '7';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("7");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=7\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #8
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '8';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("8");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=8\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #9
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '9';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("9");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=9\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //           *
-      //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '*';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("*");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=*\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //          #0
-      //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '0';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("0");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=0\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //           #
-      //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        callCharBuf[place] = '#';
-        place++;
-        tft.textMode();
-        tft.textRotate(true);
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPlace();
-        tft.textWrite("#");
-
-        // In call DTMF Tone
-        if (inCall) {
-          Serial1.write("AT+VTS=#\r");
-          delay((9 / delayForUart) * 1000);
-        }
-      }
-
-      //=========================
-      //       END/HANG UP
-      //=========================
-      if (touchValue_X > 56 && touchValue_X < 159 && touchValue_Y > 671 && touchValue_Y < 881) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        inCall = false;
-        Serial1.write("ATH\r");
-        delay((4 / delayForUart) * 1000);
-        clearScreen();
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        tft.textSetCursor(70, 15);
-        tft.textWrite("Call Ended");
-        delay(2000);
-        lastInteract = currentTime;
-        place = 3;
-        resultStr = "";
-        if (atPasscodeScreen) {
-          atAnsweredScreen = false;
-          drawPasscodeScreen();
-        }
-        else {
-          atAnsweredScreen = false;
-          drawHomeScreen();
-          atHomeScreen = true;
         }
       }
     }
@@ -1824,229 +1203,62 @@ void loop() {
     //================================================================================================
     //  PASSCODE SCREEN
     //================================================================================================
-    if (atPasscodeScreen && !atPhoneScreen && !atAnsweredScreen) {
-      int topRow_xMin = 647;
-      int topRow_xMax = 737;
-      int secondRow_xMin = 486;
-      int secondRow_xMax = 579;
-      int thirdRow_xMin = 303;
-      int thirdRow_xMax = 398;
-      int bottomRow_xMin = 164;
-      int bottomRow_xMax = 246;
-
-      int leftColumn_yMin = 190;
-      int leftColumn_yMax = 305;
-      int middleColumn_yMin = 443;
-      int middleColumn_yMax = 577;
-      int rightColumn_yMin = 690;
-      int rightColumn_yMax = 872;
-
+    if (atPasscodeScreen) {
+      char input_result = getPressedKey(touchValue_X, touchValue_Y);
       //=========================
-      //          #1
+      //           1-9
       //=========================
-      if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+      if (input_result >= '0' && input_result <= '9') {
         touchValue_X = 0;
         touchValue_Y = 0;
-        passcode += "1";
-        passcodePlace++;
+        passcode[passcode_Index++] = input_result;
         tft.textMode();
         tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
+        tft.textEnlarge(text_size);
+        delay(delay_input);
+        set_passcode_cursor(passcode_Index);
         tft.textWrite("*");
       }
-
-      //=========================
-      //          #2
-      //=========================
-      else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "2";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
-      //=========================
-      //          #3
-      //=========================
-      else if (touchValue_X > topRow_xMin && touchValue_X < topRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "3";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
-      //=========================
-      //          #4
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "4";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
-      //=========================
-      //          #5
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "5";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
-      //=========================
-      //          #6
-      //=========================
-      else if (touchValue_X > secondRow_xMin && touchValue_X < secondRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "6";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
-      //=========================
-      //          #7
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "7";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
-      //=========================
-      //          #8
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "8";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
-      //=========================
-      //          #9
-      //=========================
-      else if (touchValue_X > thirdRow_xMin && touchValue_X < thirdRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "9";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
       //=========================
       //           <-
       //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > leftColumn_yMin && touchValue_Y < leftColumn_yMax) {
+      else if (input_result == '*') {
         touchValue_X = 0;
         touchValue_Y = 0;
         passcode = passcode.substring(0, passcode.length() - 1);
+        if (passcode_Index > 0) {
+          passcode[--passcode_Index] = '\0';
+        }
         tft.textMode();
         tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
+        tft.textEnlarge(text_size);
+        delay(delay_input);
+        set_passcode_cursor(passcode_Index);
         tft.textWrite(" ");
-        passcodePlace--;
       }
-
-      //=========================
-      //          #0
-      //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > middleColumn_yMin && touchValue_Y < middleColumn_yMax) {
-        touchValue_X = 0;
-        touchValue_Y = 0;
-        passcode += "0";
-        passcodePlace++;
-        tft.textMode();
-        tft.textColor(RA8875_WHITE, RA8875_BLACK);
-        tft.textEnlarge(2);
-        delay(2);
-        switchPasscodePlace();
-        tft.textWrite("*");
-      }
-
       //=========================
       //           OK
       //=========================
-      else if (touchValue_X > bottomRow_xMin && touchValue_X < bottomRow_xMax && touchValue_Y > rightColumn_yMin && touchValue_Y < rightColumn_yMax) {
+      else if (input_result == '#') {
         touchValue_X = 0;
         touchValue_Y = 0;
         if (passcode == realPasscode) {
           tft.graphicsMode();
           drawHomeScreen();
-          atHomeScreen = true;
-          atPasscodeScreen = false;
-          atTextMessageScreen = false;
-          atPhoneScreen = false;
-          atAnswerScreen = false;
-          passcode = "";
-          passcodePlace = 0;
         } else {
           tft.graphicsMode();
           tft.fillRect(50, 20, 80, 200, RA8875_BLACK);
           tft.textMode();
           tft.textEnlarge(1);
-          delay(2);
+          delay(delay_input);
           tft.textColor(RA8875_WHITE, RA8875_RED);
           tft.textSetCursor(75, 30);
           tft.textWrite("Wrong Passcode");
-          passcode = "";
-          passcodePlace = 0;
           delay(3000);
           drawPasscodeScreen();
         }
+        passcode[0] = '\0';
+        passcode_Index = 0;
       }
     }
   }
@@ -2054,8 +1266,8 @@ void loop() {
   //================================================================================================
   //  CLEAR CALL BUFFER AT 17 CHARACTERS
   //================================================================================================
-  if (!inCall && place > 17) {
-    place = 3;
+  if (!inCall && callCharBuf_Index > 17) {
+    callCharBuf_Index = 3;
 
     // clear number display
     tft.graphicsMode();
@@ -2066,7 +1278,7 @@ void loop() {
     tft.textRotate(true);
     tft.textColor(RA8875_WHITE, RA8875_BLACK);
     tft.textEnlarge(1);
-    delay(2);
+    delay(delay_input);
     tft.textSetCursor(0, 100);
     tft.textWrite("Alert!");
     tft.textSetCursor(35, 20);
@@ -2109,84 +1321,74 @@ void loop() {
 //   FUNCTIONS CALLS
 
 //==================================================================================================================================================
-void switchPlace() {
-  int x_Position = 40;
-
-  switch (place) {
-    case 3:
-      tft.textSetCursor(x_Position, 0);
-      break;
-    case 4:
-      tft.textSetCursor(x_Position, 20);
-      break;
-    case 5:
-      tft.textSetCursor(x_Position, 40);
-      break;
-    case 6:
-      tft.textSetCursor(x_Position, 60);
-      break;
-    case 7:
-      tft.textSetCursor(x_Position, 80);
-      break;
-    case 8:
-      tft.textSetCursor(x_Position, 100);
-      break;
-    case 9:
-      tft.textSetCursor(x_Position, 120);
-      break;
-    case 10:
-      tft.textSetCursor(x_Position, 140);
-      break;
-    case 11:
-      tft.textSetCursor(x_Position, 160);
-      break;
-    case 12:
-      tft.textSetCursor(x_Position, 180);
-      break;
-    case 13:
-      tft.textSetCursor(x_Position, 200);
-      break;
-    case 14:
-      tft.textSetCursor(x_Position, 220);
-      break;
-    case 15:
-      tft.textSetCursor(x_Position, 240);
-      break;
-    case 16:
-      tft.textSetCursor(x_Position, 260);
-      break;
+void switchcallCharBuf_Index() {
+  if (callCharBuf_Index >= 3 && callCharBuf_Index <= 16) {
+    int x_Position = 40;
+    int y_Position = (callCharBuf_Index - 3) * 20;
+    tft.textSetCursor(x_Position, y_Position);
   }
 }
+
 void drawHomeScreen() {
   tft.scanV_flip(false);
   tft.textRotate(true);
-  delay(2);
+  delay(delay_input);
   tft.graphicsMode();
   clearScreen();
   tft.fillCircle(400, 70, 45, RA8875_WHITE);
   tft.fillCircle(400, 198, 45, RA8875_WHITE);
   tft.textMode();
   tft.textEnlarge(1);
-  delay(2);
+  delay(delay_input);
   tft.textColor(RA8875_BLACK, RA8875_WHITE);
   tft.textSetCursor(385, 30);
   tft.textWrite("Phone");
   tft.textColor(RA8875_BLACK, RA8875_WHITE);
   tft.textSetCursor(385, 176);
   tft.textWrite("SMS");
+  atHomeScreen = true;
+  atPasscodeScreen = false;
+  atTextMessageScreen = false;
+  atPhoneScreen = false;
+  atAnswerScreen = false;
 }
+
+void drawKeypad_isPasscode(bool isPasscode, const int rowPositions[4], const int columnPositions[3]) {
+  // Define keypad layouts
+  const char numpad[4][3] = {
+    { '1', '2', '3' },
+    { '4', '5', '6' },
+    { '7', '8', '9' },
+    { '*', '0', '#' }
+  };
+
+  const char passcodePad[4][3] = {
+    { '1', '2', '3' },
+    { '4', '5', '6' },
+    { '7', '8', '9' },
+    { '<', '0', '>' }  // Representing "<-" and "OK"
+  };
+
+  // Start drawing
+  tft.textMode();
+
+  for (int row = 0; row < 4; row++) {
+    for (int col = 0; col < 3; col++) {
+      tft.textSetCursor(columnPositions[col], rowPositions[row]);
+
+      char key = isPasscode ? passcodePad[row][col] : numpad[row][col];
+      tft.writeData(key);
+    }
+  }
+}
+
 void drawPhoneScreen() {
   tft.scanV_flip(false);
   tft.textRotate(true);
-  delay(2);
-  int left_Column = 25;
-  int middle_Column = 125;
-  int right_Column = 225;
+  delay(delay_input);
+  int columnPositions[3] = { 25, 125, 225 };     // left, middle, right
+  int rowPositions[4]    = { 100, 185, 270, 350 }; // top, second, third, bottom
 
-  int top_Row = 100;
-  int second_Row = 185;
-  int third_Row = 270;
-  int bottom_Row = 350;
 
   tft.graphicsMode();
   clearScreen();
@@ -2195,32 +1397,11 @@ void drawPhoneScreen() {
   tft.fillRect(425, 189, 54, 80, RA8875_RED);
   tft.textMode();
   tft.textColor(RA8875_WHITE, RA8875_BLACK);
-  tft.textEnlarge(2);
-  delay(2);
-  tft.textSetCursor(top_Row, left_Column);
-  tft.textWrite("1");
-  tft.textSetCursor(top_Row, middle_Column);
-  tft.textWrite("2");
-  tft.textSetCursor(top_Row, right_Column);
-  tft.textWrite("3");
-  tft.textSetCursor(second_Row, left_Column);
-  tft.textWrite("4");
-  tft.textSetCursor(second_Row, middle_Column);
-  tft.textWrite("5");
-  tft.textSetCursor(second_Row, right_Column);
-  tft.textWrite("6");
-  tft.textSetCursor(third_Row, left_Column);
-  tft.textWrite("7");
-  tft.textSetCursor(third_Row, middle_Column);
-  tft.textWrite("8");
-  tft.textSetCursor(third_Row, right_Column);
-  tft.textWrite("9");
-  tft.textSetCursor(bottom_Row, left_Column);
-  tft.textWrite("*");
-  tft.textSetCursor(bottom_Row, middle_Column);
-  tft.textWrite("0");
-  tft.textSetCursor(bottom_Row, right_Column);
-  tft.textWrite("#");
+  tft.textEnlarge(text_size);
+  delay(delay_input);
+
+  drawKeypad_isPasscode(false, rowPositions, columnPositions);
+
   tft.textEnlarge(1);
   tft.textColor(RA8875_WHITE, RA8875_GREEN);
   tft.textSetCursor(437, 8);
@@ -2231,19 +1412,19 @@ void drawPhoneScreen() {
   tft.textColor(RA8875_WHITE, RA8875_RED);
   tft.textSetCursor(437, 206);
   tft.textWrite("End");
+
+  atHomeScreen = false;
+  atPasscodeScreen = false;
+  atTextMessageScreen = false;
+  atPhoneScreen = true;
+  atAnswerScreen = false;
 }
 void drawAnsweredScreen() {
   tft.scanV_flip(false);
   tft.textRotate(true);
-  delay(2);
-  int left_Column = 25;
-  int middle_Column = 125;
-  int right_Column = 225;
-
-  int top_Row = 100;
-  int second_Row = 185;
-  int third_Row = 270;
-  int bottom_Row = 350;
+  delay(delay_input);
+  int columnPositions[3] = { 25, 125, 225 };     // left, middle, right
+  int rowPositions[4]    = { 100, 185, 270, 350 }; // top, second, third, bottom
 
   tft.graphicsMode();
   clearScreen();
@@ -2251,41 +1432,45 @@ void drawAnsweredScreen() {
   tft.fillRect(425, 189, 54, 80, RA8875_RED);
   tft.textMode();
   tft.textColor(RA8875_WHITE, RA8875_BLACK);
-  tft.textEnlarge(2);
-  delay(2);
-  tft.textSetCursor(top_Row, left_Column);
-  tft.textWrite("1");
-  tft.textSetCursor(top_Row, middle_Column);
-  tft.textWrite("2");
-  tft.textSetCursor(top_Row, right_Column);
-  tft.textWrite("3");
-  tft.textSetCursor(second_Row, left_Column);
-  tft.textWrite("4");
-  tft.textSetCursor(second_Row, middle_Column);
-  tft.textWrite("5");
-  tft.textSetCursor(second_Row, right_Column);
-  tft.textWrite("6");
-  tft.textSetCursor(third_Row, left_Column);
-  tft.textWrite("7");
-  tft.textSetCursor(third_Row, middle_Column);
-  tft.textWrite("8");
-  tft.textSetCursor(third_Row, right_Column);
-  tft.textWrite("9");
-  tft.textSetCursor(bottom_Row, left_Column);
-  tft.textWrite("*");
-  tft.textSetCursor(bottom_Row, middle_Column);
-  tft.textWrite("0");
-  tft.textSetCursor(bottom_Row, right_Column);
-  tft.textWrite("#");
+  tft.textEnlarge(text_size);
+  delay(delay_input);
+
+  drawKeypad_isPasscode(false, rowPositions, columnPositions);
+  
   tft.textEnlarge(1);
   tft.textColor(RA8875_WHITE, RA8875_RED);
   tft.textSetCursor(437, 206);
   tft.textWrite("End");
+
+  atHomeScreen = false;
+  atPasscodeScreen = false;
+  atTextMessageScreen = false;
+  atPhoneScreen = false;
+  atAnswerScreen = true;
+}
+void drawKeyboard(const int* cols, const int* rows) {
+  const char* keyboard[] = {
+    "QWERTYUIOP",
+    "ASDFGHJKL;",
+    "ZXCVBNM,./"
+  };
+
+  int numRows = sizeof(keyboard) / sizeof(keyboard[0]);
+  int numCols = sizeof(cols[0]) ? sizeof(cols) / sizeof(cols[0]) : 0;
+
+  for (int row = 0; row < numRows; row++) {
+    const char* rowChars = keyboard[row];
+    int len = strlen(rowChars);
+    for (int col = 0; col < len && col < numCols; col++) {
+      tft.textSetCursor(cols[col], rows[row]);
+      tft.textWrite(String(rowChars[col]).c_str());
+    }
+  }
 }
 void drawTextMessageScreen() {
   tft.scanV_flip(false);
   tft.textRotate(true);
-  delay(2);
+  delay(delay_input);
   tft.graphicsMode();
   clearScreen();
   tft.fillRect(425, 0, 54, 80, RA8875_GREEN);
@@ -2297,16 +1482,16 @@ void drawTextMessageScreen() {
   tft.fillTriangle(75, 210, 120, 235, 75, 260, RA8875_WHITE);
   tft.textMode();
   tft.textEnlarge(1);
-  delay(2);
+  delay(delay_input);
   tft.textColor(RA8875_WHITE, RA8875_BLACK);
   tft.textSetCursor(45, 0);
   tft.textWrite("Index ");
   tft.textEnlarge(0);
-  delay(2);
+  delay(delay_input);
   tft.textSetCursor(130, 0);
   tft.textWrite("From #");
   tft.textEnlarge(1);
-  delay(2);
+  delay(delay_input);
   tft.textColor(RA8875_WHITE, RA8875_GREEN);
   tft.textSetCursor(437, 15);
   tft.textWrite("New");
@@ -2316,43 +1501,44 @@ void drawTextMessageScreen() {
   tft.textColor(RA8875_WHITE, RA8875_RED);
   tft.textSetCursor(437, 206);
   tft.textWrite("Del");
+
+  atHomeScreen = false;
+  atPasscodeScreen = false;
+  atTextMessageScreen = true;
+  atPhoneScreen = false;
+  atAnswerScreen = false;
 }
 void drawAnswerScreen () {
   tft.scanV_flip(false);
   tft.textRotate(true);
-  delay(2);
+  delay(delay_input);
   tft.graphicsMode();
   clearScreen();
   tft.fillCircle(400, 70, 55, RA8875_GREEN);
   tft.fillCircle(400, 198, 55, RA8875_RED);
   tft.textMode();
   tft.textEnlarge(1);
-  delay(2);
+  delay(delay_input);
   tft.textColor(RA8875_WHITE, RA8875_GREEN);
   tft.textSetCursor(385, 23);
   tft.textWrite("Answer");
   tft.textColor(RA8875_WHITE, RA8875_RED);
   tft.textSetCursor(385, 148);
   tft.textWrite("Ignore");
+
+  atHomeScreen = false;
+  atPasscodeScreen = false;
+  atTextMessageScreen = false;
+  atPhoneScreen = false;
+  atAnswerScreen = true;
 }
 void drawMessagePad() {
+  int rows[] = {141, 187, 233};
+  int cols[] = {30, 75, 120, 165, 210, 255, 300, 345, 390, 435};
+
   tft.scanV_flip(true);
   tft.textRotate(false);
-  delay(2);
-  int first_Row = 141;
-  int second_Row = 187;
-  int third_Row = 233;
-
-  int first_Col = 30;
-  int second_Col = 75;
-  int third_Col = 120;
-  int fourth_Col = 165;
-  int fifth_Col = 210;
-  int sixth_Col = 255;
-  int seventh_Col = 300;
-  int eight_Col = 345;
-  int ninth_Col = 390;
-  int tenth_Col = 435;
+  delay(delay_input);
 
   tft.graphicsMode();
   clearFullScreen();
@@ -2367,327 +1553,170 @@ void drawMessagePad() {
   tft.textWrite("BACK");
   tft.textColor(RA8875_WHITE, RA8875_BLACK);
   tft.textEnlarge(0);
-  delay(2);
-  tft.textSetCursor(first_Col, first_Row);
-  tft.textWrite("Q");
-  tft.textSetCursor(second_Col, first_Row);
-  tft.textWrite("W");
-  tft.textSetCursor(third_Col, first_Row);
-  tft.textWrite("E");
-  tft.textSetCursor(fourth_Col, first_Row);
-  tft.textWrite("R");
-  tft.textSetCursor(fifth_Col, first_Row);
-  tft.textWrite("T");
-  tft.textSetCursor(sixth_Col, first_Row);
-  tft.textWrite("Y");
-  tft.textSetCursor(seventh_Col, first_Row);
-  tft.textWrite("U");
-  tft.textSetCursor(eight_Col, first_Row);
-  tft.textWrite("I");
-  tft.textSetCursor(ninth_Col, first_Row);
-  tft.textWrite("O");
-  tft.textSetCursor(tenth_Col, first_Row);
-  tft.textWrite("P");
-  tft.textSetCursor(first_Col, second_Row);
-  tft.textWrite("A");
-  tft.textSetCursor(second_Col, second_Row);
-  tft.textWrite("S");
-  tft.textSetCursor(third_Col, second_Row);
-  tft.textWrite("D");
-  tft.textSetCursor(fourth_Col, second_Row);
-  tft.textWrite("F");
-  tft.textSetCursor(fifth_Col, second_Row);
-  tft.textWrite("G");
-  tft.textSetCursor(sixth_Col, second_Row);
-  tft.textWrite("H");
-  tft.textSetCursor(seventh_Col, second_Row);
-  tft.textWrite("J");
-  tft.textSetCursor(eight_Col, second_Row);
-  tft.textWrite("K");
-  tft.textSetCursor(ninth_Col, second_Row);
-  tft.textWrite("L");
-  tft.textSetCursor(tenth_Col, second_Row);
-  tft.textWrite("; ");
-  tft.textSetCursor(first_Col, third_Row);
-  tft.textWrite("Z");
-  tft.textSetCursor(second_Col, third_Row);
-  tft.textWrite("X");
-  tft.textSetCursor(third_Col, third_Row);
-  tft.textWrite("C");
-  tft.textSetCursor(fourth_Col, third_Row);
-  tft.textWrite("V");
-  tft.textSetCursor(fifth_Col, third_Row);
-  tft.textWrite("B");
-  tft.textSetCursor(sixth_Col, third_Row);
-  tft.textWrite("N");
-  tft.textSetCursor(seventh_Col, third_Row);
-  tft.textWrite("M");
-  tft.textSetCursor(eight_Col, third_Row);
-  tft.textWrite(", ");
-  tft.textSetCursor(ninth_Col, third_Row);
-  tft.textWrite(".");
-  tft.textSetCursor(tenth_Col, third_Row);
-  tft.textWrite(" / ");
+  delay(delay_input);
+
+  drawKeyboard(cols, rows);
+  
   tft.textRotate(true);
 }
 void drawPasscodeScreen() {
   tft.scanV_flip(false);
   tft.textRotate(true);
-  delay(2);
-  int left_Column = 25;
-  int middle_Column = 125;
-  int right_Column = 225;
-
-  int top_Row = 120;
-  int second_Row = 205;
-  int third_Row = 290;
-  int bottom_Row = 370;
+  delay(delay_input);
+  int columnPositions[3] = { 25, 125, 225 };     // left, middle, right
+  int rowPositions[4]    = { 120, 205, 290, 370 }; // top, second, third, bottom
 
   tft.graphicsMode();
   clearScreen();
   tft.textMode();
   tft.textColor(RA8875_WHITE, RA8875_BLACK);
-  tft.textEnlarge(2);
-  delay(2);
-  tft.textSetCursor(top_Row, left_Column);
-  tft.textWrite("1");
-  tft.textSetCursor(top_Row, middle_Column);
-  tft.textWrite("2");
-  tft.textSetCursor(top_Row, right_Column);
-  tft.textWrite("3");
-  tft.textSetCursor(second_Row, left_Column);
-  tft.textWrite("4");
-  tft.textSetCursor(second_Row, middle_Column);
-  tft.textWrite("5");
-  tft.textSetCursor(second_Row, right_Column);
-  tft.textWrite("6");
-  tft.textSetCursor(third_Row, left_Column);
-  tft.textWrite("7");
-  tft.textSetCursor(third_Row, middle_Column);
-  tft.textWrite("8");
-  tft.textSetCursor(third_Row, right_Column);
-  tft.textWrite("9");
-  tft.textSetCursor(bottom_Row, middle_Column);
-  tft.textWrite("0");
-  tft.textColor(RA8875_WHITE, RA8875_RED);
-  tft.textSetCursor(bottom_Row, left_Column);
-  tft.textWrite("<-");
-  tft.textColor(RA8875_WHITE, RA8875_GREEN);
-  tft.textSetCursor(bottom_Row, 200);
-  tft.textWrite("OK");
+  tft.textEnlarge(text_size);
+  delay(delay_input);
+  
+  drawKeypad_isPasscode(true, rowPositions, columnPositions);
+
   tft.textColor(RA8875_WHITE, RA8875_BLUE);
   tft.textEnlarge(1);
-  delay(2);
+  delay(delay_input);
   tft.textSetCursor(440, 24);
   tft.textWrite("Enter Passcode");
+
+  atHomeScreen = false;
+  atPasscodeScreen = true;
+  atTextMessageScreen = false;
+  atPhoneScreen = false;
+  atAnswerScreen = false;
 }
-void switchPasscodePlace() {
-  int x_Position = 60;
-  switch (passcodePlace) {
-    case 0:
-      tft.textSetCursor(x_Position, 0);
-      break;
-    case 1:
-      tft.textSetCursor(x_Position, 30);
-      break;
-    case 2:
-      tft.textSetCursor(x_Position, 60);
-      break;
-    case 3:
-      tft.textSetCursor(x_Position, 90);
-      break;
-    case 4:
-      tft.textSetCursor(x_Position, 120);
-      break;
-    case 5:
-      tft.textSetCursor(x_Position, 150);
-      break;
-    case 6:
-      tft.textSetCursor(x_Position, 180);
-      break;
-    case 7:
-      tft.textSetCursor(x_Position, 210);
-      break;
-    case 8:
-      tft.textSetCursor(x_Position, 240);
-      break;
+char getPressedKey(uint16_t touchX, uint16_t touchY) {
+  if (touchX >= 689 && touchX <= 778) { // Top Row
+    if (touchY >= 190 && touchY <= 305) return '1';
+    if (touchY >= 443 && touchY <= 577) return '2';
+    if (touchY >= 690 && touchY <= 872) return '3';
+  } else if (touchX >= 529 && touchX <= 627) { // Second Row
+    if (touchY >= 190 && touchY <= 305) return '4';
+    if (touchY >= 443 && touchY <= 577) return '5';
+    if (touchY >= 690 && touchY <= 872) return '6';
+  } else if (touchX >= 347 && touchX <= 442) { // Third Row
+    if (touchY >= 190 && touchY <= 305) return '7';
+    if (touchY >= 443 && touchY <= 577) return '8';
+    if (touchY >= 690 && touchY <= 872) return '9';
+  } else if (touchX >= 194 && touchX <= 285) { // Bottom Row
+    if (touchY >= 190 && touchY <= 305) return '*';
+    if (touchY >= 443 && touchY <= 577) return '0';
+    if (touchY >= 690 && touchY <= 872) return '#';
   }
+
+  return '\0'; // No key matched
 }
 void printClockTime() {
-  if (displayClockTime) {
-    displayClockTime = false;
-    // Determine the start and finish of body for clockTime format number
-    int clockTime_Start = bufGPRS.indexOf('"');
+  if (!displayClockTime) return;
+  displayClockTime = false;
 
-    //=========================
-    //      HOUR FORMAT
-    //=========================
-    clockTime[0] = bufGPRS.charAt(clockTime_Start + 10);
-    clockTime[1] = bufGPRS.charAt(clockTime_Start + 11);
-    unsigned int am_pm = 0;
-    am_pm += (clockTime[0] - 48) * 10;
-    am_pm += clockTime[1] - 48;
+  // ===============================
+  // Find the starting point of the timestamp in the buffer (first quote)
+  // ===============================
+  char* clockTimePtr = strchr(bufGPRS, '"');
+  if (!clockTimePtr) return;
 
-    //=========================
-    //      MINUTE FORMAT
-    //=========================
-    clockTime[2] = ':';
-    clockTime[3] = bufGPRS.charAt(clockTime_Start + 13);
-    clockTime[4] = bufGPRS.charAt(clockTime_Start + 14);
+  // ===============================
+  // Parse the hour (24h format)
+  // Format: "yy/MM/dd,hh:mm:ss+zone"
+  // Hour is at offset +10 and +11
+  // ===============================
+  int hour = (clockTimePtr[10] - '0') * 10 + (clockTimePtr[11] - '0');
 
-    //=========================
-    //        AM & PM
-    //=========================
-    if (am_pm < 12) {
-      clockTime[5] = 'a';
-      clockTime[6] = 'm';
-      if (clockTime[1] == '0') {
-        clockTime[0] = '1';
-        clockTime[1] = '2';
-      }
-    }
-    else {
-      clockTime[5] = 'p';
-      clockTime[6] = 'm';
-      if (clockTime[0] == '2' && clockTime[1] < '2') {
-        clockTime[0] = '0';
-        clockTime[1] += 8;
-      }
-      else if (clockTime[1] != '2') {
-        clockTime[0] -= 1;
-        clockTime[1] -= 2;
-      }
-    }
+  // Convert to 12-hour format
+  int hour12 = hour % 12;
+  if (hour12 == 0) hour12 = 12;
 
-    int first_Letter = 7;
-    int second_Letter = 8;
-    int third_Letter = 9;
+  // Store hours
+  clockTime[0] = (hour12 >= 10) ? ('0' + (hour12 / 10)) : ' ';
+  clockTime[1] = '0' + (hour12 % 10);
 
-    //=========================
-    //      MONTH FORMAT
-    //=========================
-    // (default year:month:day hour:minute:second)
-    if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '1') {
-      clockTime[first_Letter] = 'J';
-      clockTime[second_Letter] = 'a';
-      clockTime[third_Letter] = 'n';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '2') {
-      clockTime[first_Letter] = 'F';
-      clockTime[second_Letter] = 'e';
-      clockTime[third_Letter] = 'b';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '3') {
-      clockTime[first_Letter] = 'M';
-      clockTime[second_Letter] = 'a';
-      clockTime[third_Letter] = 'r';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '4') {
-      clockTime[first_Letter] = 'A';
-      clockTime[second_Letter] = 'p';
-      clockTime[third_Letter] = 'r';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '5') {
-      clockTime[first_Letter] = 'M';
-      clockTime[second_Letter] = 'a';
-      clockTime[third_Letter] = 'y';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '6') {
-      clockTime[first_Letter] = 'J';
-      clockTime[second_Letter] = 'u';
-      clockTime[third_Letter] = 'n';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '7') {
-      clockTime[first_Letter] = 'J';
-      clockTime[second_Letter] = 'u';
-      clockTime[third_Letter] = 'l';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '8') {
-      clockTime[first_Letter] = 'A';
-      clockTime[second_Letter] = 'u';
-      clockTime[third_Letter] = 'g';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '0' && bufGPRS.charAt(clockTime_Start + 5) == '9') {
-      clockTime[first_Letter] = 'S';
-      clockTime[second_Letter] = 'e';
-      clockTime[third_Letter] = 'p';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '1' && bufGPRS.charAt(clockTime_Start + 5) == '0') {
-      clockTime[first_Letter] = 'O';
-      clockTime[second_Letter] = 'c';
-      clockTime[third_Letter] = 't';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '1' && bufGPRS.charAt(clockTime_Start + 5) == '1') {
-      clockTime[first_Letter] = 'N';
-      clockTime[second_Letter] = 'o';
-      clockTime[third_Letter] = 'v';
-    }
-    else if (bufGPRS.charAt(clockTime_Start + 4) == '1' && bufGPRS.charAt(clockTime_Start + 5) == '2') {
-      clockTime[first_Letter] = 'D';
-      clockTime[second_Letter] = 'e';
-      clockTime[third_Letter] = 'c';
-    }
-    clockTime[third_Letter + 1] = ' ';
+  // ===============================
+  // Parse minutes
+  // Minutes are at offset +13 and +14
+  // ===============================
+  clockTime[2] = ':';
+  clockTime[3] = clockTimePtr[13];
+  clockTime[4] = clockTimePtr[14];
 
-    //=========================
-    //      Day FORMAT
-    //=========================
-    clockTime[third_Letter + 2] = bufGPRS.charAt(clockTime_Start + 7);
-    clockTime[third_Letter + 3] = bufGPRS.charAt(clockTime_Start + 8);
-    clockTime[third_Letter + 4] = ',';
+  // AM/PM indicator
+  clockTime[5] = (hour < 12) ? 'a' : 'p';
+  clockTime[6] = 'm';
 
-    //=========================
-    //      YEAR FORMAT
-    //=========================
-    clockTime[third_Letter + 5] = '2';
-    clockTime[third_Letter + 6] = '0';
-    clockTime[third_Letter + 7] = bufGPRS.charAt(clockTime_Start + 1);
-    clockTime[third_Letter + 8] = bufGPRS.charAt(clockTime_Start + 2);
-  }
+  // ===============================
+  // Parse month to month abbreviation
+  // Month is at offset +4 and +5
+  // ===============================
+  const char* months[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  };
 
-  //==========================
-  //  WRITE clockTime TO SCREEN
-  //==========================
+  int monthIndex = (clockTimePtr[4] - '0') * 10 + (clockTimePtr[5] - '0') - 1;
+  if (monthIndex < 0 || monthIndex > 11) monthIndex = 0;
+
+  clockTime[7]  = months[monthIndex][0];
+  clockTime[8]  = months[monthIndex][1];
+  clockTime[9]  = months[monthIndex][2];
+  clockTime[10] = ' ';
+
+  // ===============================
+  // Parse day (offset +7 and +8)
+  // ===============================
+  clockTime[11] = clockTimePtr[7];
+  clockTime[12] = clockTimePtr[8];
+  clockTime[13] = ',';
+  clockTime[14] = ' ';
+
+  // ===============================
+  // Format the year (assumes 20xx)
+  // Year is at offset +1 and +2
+  // ===============================
+  clockTime[15] = '2';
+  clockTime[16] = '0';
+  clockTime[17] = clockTimePtr[1];
+  clockTime[18] = clockTimePtr[2];
+
+  // ===============================
+  // Display on TFT
+  // ===============================
   tft.textMode();
   tft.textColor(RA8875_WHITE, RA8875_BLACK);
+  tft.textEnlarge(0);
 
-  // clockTime text placement changes for the send text massage screen
   if (!atSendTextScreen) {
     tft.scanV_flip(false);
     tft.textRotate(true);
-    delay(2);
+    delay(delay_input);
     tft.textSetCursor(15, 90);
-  }
-  else {
+  } else {
     tft.scanV_flip(true);
     tft.textRotate(false);
-    delay(2);
+    delay(delay_input);
     tft.textSetCursor(210, 10);
   }
-  tft.textEnlarge(0);
-  delay(2);
+
+  // Write time
   tft.writeCommand(RA8875_MRWC);
-  // Write Time
   for (int i = 0; i < 7; i++) {
     tft.writeData(clockTime[i]);
     delay(1);
   }
 
-  // Date text placement changes for the send text massage screen
+  // Set cursor for date
   if (!atSendTextScreen) {
     tft.textSetCursor(15, 160);
-  }
-  else {
+  } else {
     tft.textSetCursor(285, 10);
   }
-  tft.textEnlarge(0);
-  delay(2);
 
-  // Write Date
+  delay(delay_input);
   tft.writeCommand(RA8875_MRWC);
-  for (int i = 7; i < 18; i++) {
-    if (i == 14)
-      i += 2;
+
+  // Write date
+  for (int i = 7; i <= 18; i++) {
     tft.writeData(clockTime[i]);
     delay(1);
   }
@@ -2696,31 +1725,31 @@ void batteryDisplay() {
   tft.textMode();
   tft.textColor(RA8875_WHITE, RA8875_BLACK);
 
-  // Battey Level Indicator text placement changes for the send text massage screen
+  // Battey Level Indicator text callCharBuf_Indexment changes for the send text massage screen
   if (!atSendTextScreen) {
     tft.scanV_flip(false);
-    delay(2);
+    delay(delay_input);
     tft.textRotate(true);
-    delay(2);
+    delay(delay_input);
     tft.textSetCursor(15, 248);
   }
   else {
     tft.scanV_flip(true);
-    delay(2);
+    delay(delay_input);
     tft.textRotate(false);
-    delay(2);
+    delay(delay_input);
     tft.textSetCursor(370, 10);
   }
 
   tft.textEnlarge(0);
-  delay(2);
+  delay(delay_input);
   tft.writeCommand(RA8875_MRWC);
   for (int i = 0; i < 2; i++) {
     tft.writeData(battLevel[i]);
-    delay(2);
+    delay(delay_input);
   }
   tft.writeData('%');
-  delay(2);
+  delay(delay_input);
 }
 void clearScreen() {
   tft.fillRect(32, 0, 448, 279, RA8875_BLACK);
@@ -2754,6 +1783,21 @@ void print_bufGPRS() {
 void testforloops() {
   Serial.print("I'm dying\r\n");
 }
+void set_passcode_cursor(uint8_t index) {
+  if (index < 9) {
+    tft.textSetCursor(x_Position, index * 30);
+  }
+}
+void get_substring_by_index(char *output_buffer, const char *input_buffer, int variable_index, int variable_length, int output_buffer_size) {
+  if (variable_index < 0 || variable_length < 0 || output_buffer_size < 1) return;
+
+  int i;
+  for (i = 0; i < variable_length && i < output_buffer_size - 1 && input_buffer[variable_index + i] != '\0'; i++) {
+    output_buffer[i] = input_buffer[variable_index + i];
+  }
+  output_buffer[i] = '\0'; // Always null-terminate
+}
+
 //==================================================================================================================================================
 
 //   END OF FUNCTION CALLS
