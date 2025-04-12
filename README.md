@@ -97,10 +97,7 @@ Arduino-based and fully open-source, OpenCellPhone is a DIY mobile phone project
 ### Folder Structure
 
 ```text
-/ArduinoProject
+/PrototypePhone
 │
-├── /src              # Main source code
-├── /lib              # Optional custom libraries
-├── /include          # Shared header files
-├── c_cpp_properties.json  # VSCode IntelliSense config (optional)
-└── README.md
+├── /lib                # Optional custom libraries
+├── PrototypePhone.ino  # main file
