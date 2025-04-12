@@ -1,6 +1,6 @@
 /******************************************************************************************************
 
-                          Licensed under the GPLv3
+                                   Licensed under the GPLv3
 
     This code running on an Arduino combined with the GPRS shield from Seeedstudio, and the
   4.3" tft touch screen from Adafrit, using the RA8875 driver from Adafruit, it will produce

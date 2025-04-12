@@ -1,0 +1,25 @@
+{
+    "configurations": [
+      {
+        "name": "Arduino",
+        "includePath": [
+          "${workspaceFolder}/**",
+          "${workspaceFolder}/ProtoTypePhone/lib/**",
+          "${userHome}/Documents/Arduino/libraries/**",
+          "C:/Program Files (x86)/Arduino/hardware/arduino/avr/cores/arduino",
+          "C:/Program Files (x86)/Arduino/hardware/arduino/avr/variants/standard"
+        ],
+        "defines": [
+          "ARDUINO=10805",
+          "ARDUINO_ARCH_AVR",
+          "ARDUINO_AVR_UNO" // or your specific board like ARDUINO_AVR_MEGA2560
+        ],
+        "compilerPath": "C:/Program Files (x86)/Arduino/hardware/tools/avr/bin/avr-g++.exe",
+        "cStandard": "c11",
+        "cppStandard": "c++17",
+        "intelliSenseMode": "windows-gcc-x86"
+      }
+    ],
+    "version": 4
+  }
+  
